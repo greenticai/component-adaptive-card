@@ -95,7 +95,7 @@ greentic-dev flow add-step \
   --node-id adaptive-card \
   --operation card \
   --payload '{"card_source":"asset","card_spec":{"asset_path":"card.json","template_params":{}},"mode":"renderAndValidate"}' \
-  --component oci://ghcr.io/greentic-ai/components/component-adaptive-card:latest
+  --component oci://ghcr.io/greenticai/components/component-adaptive-card:latest
 ```
 
 Default mode expects an explicit payload, so no interactive prompts are required.
@@ -112,7 +112,7 @@ greentic-dev flow add-step \
   --after start \
   --node-id adaptive-card \
   --mode config \
-  --component oci://ghcr.io/greentic-ai/components/component-adaptive-card:latest \
+  --component oci://ghcr.io/greenticai/components/component-adaptive-card:latest \
   --manifest component.manifest.json
 ```
 
@@ -125,7 +125,7 @@ greentic-dev flow add-step \
   --node-id adaptive-card \
   --mode config \
   --config-flow ./dev_flows.custom \
-  --component oci://ghcr.io/greentic-ai/components/component-adaptive-card:latest \
+  --component oci://ghcr.io/greenticai/components/component-adaptive-card:latest \
   --manifest component.manifest.json
 ```
 
@@ -169,7 +169,7 @@ Notes:
 ```bash
 greentic-component store fetch \
   --out . \
-  oci://ghcr.io/greentic-ai/components/component-adaptive-card:latest
+  oci://ghcr.io/greenticai/components/component-adaptive-card:latest
 ```
 
 This downloads the component artifact locally.
@@ -248,3 +248,4 @@ greentic-component test \
 - Adaptive Card Designer: https://adaptivecards.io/designer/
 - Microsoft Teams Cards: https://learn.microsoft.com/microsoftteams/platform/task-modules-and-cards/cards/cards-reference
 - Webex Adaptive Cards: https://developer.webex.com/messaging/docs/buttons-and-cards
+
