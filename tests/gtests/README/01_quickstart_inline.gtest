@@ -37,19 +37,19 @@ EOF
     "start": {
       "source": {
         "kind": "oci",
-        "ref": "oci://ghcr.io/greentic-ai/components/component-adaptive-card:latest"
+        "ref": "oci://ghcr.io/greenticai/components/component-adaptive-card:latest"
       }
     },
     "end": {
       "source": {
         "kind": "oci",
-        "ref": "oci://ghcr.io/greentic-ai/components/component-adaptive-card:latest"
+        "ref": "oci://ghcr.io/greenticai/components/component-adaptive-card:latest"
       }
     },
     "adaptive-card": {
       "source": {
         "kind": "oci",
-        "ref": "oci://ghcr.io/greentic-ai/components/component-adaptive-card:latest"
+        "ref": "oci://ghcr.io/greenticai/components/component-adaptive-card:latest"
       }
     }
   }
@@ -59,3 +59,4 @@ EOF
 #EXPECT_EXIT 0
 #SAVE_ARTIFACT ${FLOW}
 #SAVE_ARTIFACT ${FLOW}.resolve.json
+
