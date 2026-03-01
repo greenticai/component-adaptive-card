@@ -165,7 +165,3 @@ pub fn tf(locale: &str, key: &str, args: &[(&str, &str)]) -> String {
     }
     key.to_string()
 }
-
-pub fn en(key: &str) -> String {
-    t("en", key)
-}

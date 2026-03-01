@@ -22,6 +22,9 @@ cargo test --workspace --all-targets
 echo "Building wasm32-wasip2 (release)..."
 cargo build --target wasm32-wasip2 --release
 
+echo "Checking host:state capability wiring..."
+./ci/check_host_state_capability.sh
+
 if command -v greentic-integration-tester >/dev/null 2>&1; then
   echo "Running README gtests..."
   greentic-integration-tester run --gtest tests/gtests/README --artifacts-dir artifacts/readme-gtests --errors

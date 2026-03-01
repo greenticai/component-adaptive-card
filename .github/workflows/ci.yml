@@ -30,6 +30,8 @@ jobs:
         run: cargo check --target wasm32-wasip2
       - name: Build WASM (release)
         run: cargo build --target wasm32-wasip2 --release
+      - name: Check host state capability wiring
+        run: ./ci/check_host_state_capability.sh
       - name: Prepare publish artifacts
         if: github.ref == 'refs/heads/master'
         run: |
@@ -118,6 +120,8 @@ jobs:
           key: ${{ runner.os }}-cargo-bins-${{ hashFiles('**/Cargo.lock') }}
       - name: Build WASM (release)
         run: cargo build --target wasm32-wasip2 --release
+      - name: Check host state capability wiring
+        run: ./ci/check_host_state_capability.sh
       - name: Run README gtests
         env:
           GREENTIC_TRACE_OUT: ${{ github.workspace }}/artifacts/readme-gtests/trace.json

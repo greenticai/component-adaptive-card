@@ -1,0 +1,90 @@
+{
+  "info": {
+    "id": "ai.greentic.component-adaptive-card",
+    "version": "0.1.18",
+    "role": "tool",
+    "display_name": {
+      "key": "component.display_name",
+      "fallback": "component-adaptive-card"
+    }
+  },
+  "provided_capabilities": [],
+  "required_capabilities": [],
+  "metadata": {},
+  "operations": [
+    {
+      "id": "card",
+      "display_name": {
+        "key": "adaptive_card.operation.card",
+        "fallback": null
+      },
+      "input": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "input": {
+              "type": "string",
+              "min_len": 0,
+              "max_len": 8192,
+              "regex": null,
+              "format": null
+            }
+          },
+          "required": [
+            "input"
+          ],
+          "additional": {
+            "type": "forbid"
+          }
+        }
+      },
+      "output": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "message": {
+              "type": "string",
+              "min_len": 0,
+              "max_len": 8192,
+              "regex": null,
+              "format": null
+            }
+          },
+          "required": [
+            "message"
+          ],
+          "additional": {
+            "type": "forbid"
+          }
+        }
+      },
+      "defaults": {},
+      "redactions": [],
+      "constraints": {},
+      "schema_hash": "eb2d5fd6fa0c1a4ac415ab9e8a25f3329df1c7299e9d744702fd5c0d903b4617"
+    }
+  ],
+  "config_schema": {
+    "type": "object",
+    "properties": {
+      "asset_base_path": {
+        "type": "string",
+        "min_len": 0,
+        "max_len": 4096,
+        "regex": null,
+        "format": null
+      },
+      "catalog_registry_file": {
+        "type": "string",
+        "min_len": 0,
+        "max_len": 4096,
+        "regex": null,
+        "format": null
+      }
+    },
+    "required": [],
+    "additional": {
+      "type": "forbid"
+    }
+  }
+}

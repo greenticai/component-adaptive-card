@@ -18,5 +18,6 @@
 #EXPECT_JSONPATH ${OUT} result.stateUpdates[0].Merge.path equals form_data
 #EXPECT_JSONPATH ${OUT} result.stateUpdates[0].Merge.value.comment equals Hello from state
 #EXPECT_JSONPATH ${OUT} result.validationIssues[0] not_exists
+#EXPECT_STDERR_CONTAINS state dump:
 #EXPECT_STDERR_CONTAINS eyJmb3JtX2RhdGEiOnsiY29tbWVudCI6IkhlbGxvIGZyb20gc3RhdGUifX0=
 #SAVE_ARTIFACT ${OUT}
