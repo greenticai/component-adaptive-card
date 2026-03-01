@@ -178,7 +178,7 @@ dependencies = [
 
 [[package]]
 name = "component-adaptive-card"
-version = "0.1.18"
+version = "0.1.19"
 dependencies = [
  "blake3",
  "greentic-interfaces-guest",

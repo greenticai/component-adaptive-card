@@ -36,7 +36,7 @@ pub use render::render_card;
 
 const COMPONENT_NAME: &str = "component-adaptive-card";
 const COMPONENT_ORG: &str = "ai.greentic";
-const COMPONENT_VERSION: &str = "0.1.18";
+const COMPONENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 static COMPONENT_SCHEMA_JSON: Lazy<serde_json::Value> = Lazy::new(|| {
     serde_json::from_str(include_str!("../schemas/component.schema.json"))
@@ -166,10 +166,7 @@ impl component_qa::Guest for Component {
             QaMode::Update => ("update", QaModeModel::Update),
             QaMode::Remove => ("remove", QaModeModel::Remove),
         };
-        let questions = match mode {
-            QaMode::Default | QaMode::Setup | QaMode::Update => qa_card_questions(),
-            QaMode::Remove => Vec::new(),
-        };
+        let questions = qa_card_questions_for_mode(mode_key);
         encode_cbor(&ComponentQaSpec {
             mode: spec_mode,
             title: I18nText::new(format!("qa.{mode_key}.title"), None),
@@ -198,12 +195,9 @@ impl component_i18n::Guest for Component {
             "qa.question.card_source.help".to_string(),
             "qa.question.card_source.option.asset".to_string(),
             "qa.question.card_source.option.inline".to_string(),
-            "qa.question.asset_path.label".to_string(),
-            "qa.question.asset_path.help".to_string(),
-            "qa.question.inline_card_json.label".to_string(),
-            "qa.question.inline_card_json.help".to_string(),
-            "qa.question.i18n_locale.label".to_string(),
-            "qa.question.i18n_locale.help".to_string(),
+            "qa.question.card_source.option.catalog".to_string(),
+            "qa.question.card_input.label".to_string(),
+            "qa.question.card_input.help".to_string(),
             "qa.setup.title".to_string(),
             "qa.setup.description".to_string(),
             "qa.update.title".to_string(),
@@ -396,57 +390,76 @@ fn run_component_cbor(input: Vec<u8>, _state: Vec<u8>) -> (Vec<u8>, Vec<u8>) {
     (encode_cbor(&parsed), encode_cbor(&serde_json::json!({})))
 }
 
-#[cfg(target_arch = "wasm32")]
-fn qa_card_questions() -> Vec<Question> {
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum QaQuestionKindDef {
+    Text,
+    Choice(Vec<(&'static str, &'static str)>),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct QaQuestionDef {
+    id: &'static str,
+    label_key: &'static str,
+    help_key: &'static str,
+    kind: QaQuestionKindDef,
+    required: bool,
+}
+
+fn qa_question_defs() -> Vec<QaQuestionDef> {
     vec![
-        Question {
-            id: "card_source".to_string(),
-            label: I18nText::new("qa.question.card_source.label", None),
-            help: Some(I18nText::new("qa.question.card_source.help", None)),
-            error: None,
-            kind: QuestionKind::Choice {
-                options: vec![
-                    ChoiceOption {
-                        value: "asset".to_string(),
-                        label: I18nText::new("qa.question.card_source.option.asset", None),
-                    },
-                    ChoiceOption {
-                        value: "inline".to_string(),
-                        label: I18nText::new("qa.question.card_source.option.inline", None),
-                    },
-                ],
-            },
+        QaQuestionDef {
+            id: "card_source",
+            label_key: "qa.question.card_source.label",
+            help_key: "qa.question.card_source.help",
+            kind: QaQuestionKindDef::Choice(vec![
+                ("asset", "qa.question.card_source.option.asset"),
+                ("inline", "qa.question.card_source.option.inline"),
+                ("catalog", "qa.question.card_source.option.catalog"),
+            ]),
             required: true,
-            default: None,
         },
-        Question {
-            id: "asset_path".to_string(),
-            label: I18nText::new("qa.question.asset_path.label", None),
-            help: Some(I18nText::new("qa.question.asset_path.help", None)),
-            error: None,
-            kind: QuestionKind::Text,
-            required: false,
-            default: None,
-        },
-        Question {
-            id: "inline_card_json".to_string(),
-            label: I18nText::new("qa.question.inline_card_json.label", None),
-            help: Some(I18nText::new("qa.question.inline_card_json.help", None)),
-            error: None,
-            kind: QuestionKind::Text,
-            required: false,
-            default: None,
-        },
-        Question {
-            id: "i18n_locale".to_string(),
-            label: I18nText::new("qa.question.i18n_locale.label", None),
-            help: Some(I18nText::new("qa.question.i18n_locale.help", None)),
-            error: None,
-            kind: QuestionKind::Text,
-            required: false,
-            default: None,
+        QaQuestionDef {
+            id: "card_input",
+            label_key: "qa.question.card_input.label",
+            help_key: "qa.question.card_input.help",
+            kind: QaQuestionKindDef::Text,
+            required: true,
         },
     ]
+}
+
+fn qa_question_defs_for_mode(mode_key: &str) -> Vec<QaQuestionDef> {
+    match mode_key {
+        "default" | "setup" | "update" => qa_question_defs(),
+        _ => Vec::new(),
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+fn qa_card_questions_for_mode(mode_key: &str) -> Vec<Question> {
+    qa_question_defs_for_mode(mode_key)
+        .into_iter()
+        .map(|question| Question {
+            id: question.id.to_string(),
+            label: I18nText::new(question.label_key, None),
+            help: Some(I18nText::new(question.help_key, None)),
+            error: None,
+            kind: match question.kind {
+                QaQuestionKindDef::Text => QuestionKind::Text,
+                QaQuestionKindDef::Choice(options) => QuestionKind::Choice {
+                    options: options
+                        .into_iter()
+                        .map(|(value, label_key)| ChoiceOption {
+                            value: value.to_string(),
+                            label: I18nText::new(label_key, None),
+                        })
+                        .collect(),
+                },
+            },
+            required: question.required,
+            default: None,
+        })
+        .collect()
 }
 
 fn qa_apply_answers_json(current_config: &[u8], answers: &[u8]) -> serde_json::Value {
@@ -476,13 +489,40 @@ fn qa_apply_answers_json(current_config: &[u8], answers: &[u8]) -> serde_json::V
         .unwrap_or_default();
 
     if selected_source.eq_ignore_ascii_case("inline") {
-        let inline_json = resolve_inline_card_json(answer_map.get("inline_card_json"), &card_spec);
+        let inline_json = resolve_inline_card_json(
+            answer_map
+                .get("card_input")
+                .or_else(|| answer_map.get("inline_card_json")),
+            &card_spec,
+        );
         card_spec.insert("inline_json".to_string(), inline_json);
         card_spec.remove("asset_path");
         card_spec.remove("catalog_name");
+    } else if selected_source.eq_ignore_ascii_case("catalog") {
+        let catalog_name = answer_map
+            .get("card_input")
+            .or_else(|| answer_map.get("catalog_name"))
+            .and_then(|v| v.as_str())
+            .map(str::trim)
+            .filter(|v| !v.is_empty())
+            .map(ToOwned::to_owned)
+            .or_else(|| {
+                card_spec
+                    .get("catalog_name")
+                    .and_then(|v| v.as_str())
+                    .map(ToOwned::to_owned)
+            })
+            .unwrap_or_else(|| "default-card".to_string());
+        card_spec.insert(
+            "catalog_name".to_string(),
+            serde_json::Value::String(catalog_name),
+        );
+        card_spec.remove("inline_json");
+        card_spec.remove("asset_path");
     } else {
         let asset_path = answer_map
-            .get("asset_path")
+            .get("card_input")
+            .or_else(|| answer_map.get("asset_path"))
             .and_then(|v| v.as_str())
             .map(str::trim)
             .filter(|v| !v.is_empty())
@@ -506,6 +546,8 @@ fn qa_apply_answers_json(current_config: &[u8], answers: &[u8]) -> serde_json::V
         "card_source".to_string(),
         serde_json::Value::String(if selected_source.eq_ignore_ascii_case("inline") {
             "inline".to_string()
+        } else if selected_source.eq_ignore_ascii_case("catalog") {
+            "catalog".to_string()
         } else {
             "asset".to_string()
         }),
@@ -517,17 +559,6 @@ fn qa_apply_answers_json(current_config: &[u8], answers: &[u8]) -> serde_json::V
     merged
         .entry("mode".to_string())
         .or_insert_with(|| serde_json::Value::String("renderAndValidate".to_string()));
-    if let Some(locale) = answer_map
-        .get("i18n_locale")
-        .and_then(|v| v.as_str())
-        .map(str::trim)
-        .filter(|v| !v.is_empty())
-    {
-        merged.insert(
-            "i18n_locale".to_string(),
-            serde_json::Value::String(locale.to_string()),
-        );
-    }
 
     serde_json::Value::Object(merged)
 }
@@ -1060,8 +1091,7 @@ mod debug_tests {
     fn qa_apply_answers_builds_asset_invocation() {
         let answers = encode_cbor(&json!({
             "card_source": "asset",
-            "asset_path": "assets/cards/welcome.json",
-            "i18n_locale": "en-GB"
+            "card_input": "assets/cards/welcome.json"
         }));
 
         let merged = qa_apply_answers_json(&encode_cbor(&json!({})), &answers);
@@ -1070,7 +1100,6 @@ mod debug_tests {
             merged["card_spec"]["asset_path"],
             "assets/cards/welcome.json"
         );
-        assert_eq!(merged["i18n_locale"], "en-GB");
         assert_eq!(merged["mode"], "renderAndValidate");
     }
 
@@ -1078,7 +1107,7 @@ mod debug_tests {
     fn qa_apply_answers_falls_back_to_i18n_inline_template() {
         let answers = encode_cbor(&json!({
             "card_source": "inline",
-            "inline_card_json": "not-json"
+            "card_input": "not-json"
         }));
 
         let merged = qa_apply_answers_json(&encode_cbor(&json!({})), &answers);
@@ -1087,5 +1116,92 @@ mod debug_tests {
             merged["card_spec"]["inline_json"]["body"][0]["text"],
             "{{i18n:adaptive_card.default.title}}"
         );
+    }
+
+    #[test]
+    fn component_version_reflects_cargo_version() {
+        assert_eq!(COMPONENT_VERSION, env!("CARGO_PKG_VERSION"));
+        let payload: serde_json::Value =
+            serde_json::from_str(&describe_payload()).expect("describe payload json");
+        assert_eq!(
+            payload["component"]["version"],
+            serde_json::Value::String(env!("CARGO_PKG_VERSION").to_string())
+        );
+    }
+
+    #[test]
+    fn qa_questions_exist_for_default_setup_update_modes() {
+        for mode in ["default", "setup", "update"] {
+            let defs = qa_question_defs_for_mode(mode);
+            assert_eq!(defs.len(), 2, "expected two questions for mode {mode}");
+            assert_eq!(defs[0].id, "card_source");
+            assert_eq!(defs[1].id, "card_input");
+        }
+    }
+
+    #[test]
+    fn qa_questions_for_remove_mode_are_empty() {
+        assert!(qa_question_defs_for_mode("remove").is_empty());
+    }
+
+    #[test]
+    fn qa_card_source_choices_cover_inline_asset_catalog() {
+        let defs = qa_question_defs_for_mode("default");
+        let source = defs
+            .iter()
+            .find(|q| q.id == "card_source")
+            .expect("card_source question");
+        let QaQuestionKindDef::Choice(choices) = &source.kind else {
+            panic!("card_source must be a choice question");
+        };
+        let values: Vec<&str> = choices.iter().map(|(value, _)| *value).collect();
+        assert_eq!(values, vec!["asset", "inline", "catalog"]);
+    }
+
+    #[test]
+    fn qa_apply_answers_builds_inline_invocation_from_card_input() {
+        let answers = encode_cbor(&json!({
+            "card_source": "inline",
+            "card_input": "{\"type\":\"AdaptiveCard\",\"version\":\"1.6\",\"body\":[{\"type\":\"TextBlock\",\"text\":\"Hello\"}]}"
+        }));
+
+        let merged = qa_apply_answers_json(&encode_cbor(&json!({})), &answers);
+        assert_eq!(merged["card_source"], "inline");
+        assert_eq!(merged["card_spec"]["inline_json"]["type"], "AdaptiveCard");
+        assert_eq!(
+            merged["card_spec"]["inline_json"]["body"][0]["text"],
+            "Hello"
+        );
+        assert_eq!(merged["mode"], "renderAndValidate");
+    }
+
+    #[test]
+    fn qa_apply_answers_builds_catalog_invocation_from_card_input() {
+        let answers = encode_cbor(&json!({
+            "card_source": "catalog",
+            "card_input": "welcome-card"
+        }));
+
+        let merged = qa_apply_answers_json(&encode_cbor(&json!({})), &answers);
+        assert_eq!(merged["card_source"], "catalog");
+        assert_eq!(merged["card_spec"]["catalog_name"], "welcome-card");
+        assert!(merged["card_spec"].get("asset_path").is_none());
+        assert!(merged["card_spec"].get("inline_json").is_none());
+        assert_eq!(merged["mode"], "renderAndValidate");
+    }
+
+    #[test]
+    fn qa_required_answers_are_defined_for_default_setup_update() {
+        for mode in ["default", "setup", "update"] {
+            let defs = qa_question_defs_for_mode(mode);
+            assert!(
+                defs.iter().any(|q| q.id == "card_source" && q.required),
+                "card_source should be required for {mode}"
+            );
+            assert!(
+                defs.iter().any(|q| q.id == "card_input" && q.required),
+                "card_input should be required for {mode}"
+            );
+        }
     }
 }
