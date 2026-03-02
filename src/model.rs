@@ -77,7 +77,7 @@ pub struct AdaptiveCardInvocation {
     /// Optional shared invocation envelope metadata from the host.
     #[serde(default)]
     #[serde(
-        deserialize_with = "deserialize_canonical_invocation_envelope_opt",
+        deserialize_with = "deserialize_canonical_invocation_envelope_lenient",
         serialize_with = "serialize_canonical_invocation_envelope_opt"
     )]
     pub envelope: Option<CanonicalInvocationEnvelope>,
@@ -349,6 +349,23 @@ where
 {
     let raw = Option::<CanonicalInvocationEnvelopeWire>::deserialize(deserializer)?;
     Ok(raw.map(Into::into))
+}
+
+/// Lenient variant: silently returns `None` when the envelope JSON is
+/// incomplete (e.g. `envelope: {}` from simplified flow YAML).
+fn deserialize_canonical_invocation_envelope_lenient<'de, D>(
+    deserializer: D,
+) -> Result<Option<CanonicalInvocationEnvelope>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value: Option<serde_json::Value> = serde::Deserialize::deserialize(deserializer)?;
+    match value {
+        None => Ok(None),
+        Some(v) => Ok(serde_json::from_value::<CanonicalInvocationEnvelopeWire>(v)
+            .ok()
+            .map(Into::into)),
+    }
 }
 
 pub fn serialize_canonical_invocation_envelope_opt<S>(
