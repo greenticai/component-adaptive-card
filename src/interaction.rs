@@ -1,5 +1,6 @@
 use serde_json::{Map, Value};
 
+use crate::config::RuntimeConfig;
 use crate::error::ComponentError;
 use crate::model::{
     AdaptiveActionEvent, AdaptiveActionType, AdaptiveCardInvocation, AdaptiveCardResult,
@@ -11,6 +12,7 @@ use crate::trace;
 
 pub fn handle_interaction(
     inv: &AdaptiveCardInvocation,
+    runtime_config: &RuntimeConfig,
 ) -> Result<AdaptiveCardResult, ComponentError> {
     let interaction = inv
         .interaction
@@ -30,7 +32,7 @@ pub fn handle_interaction(
     let mut invocation = inv.clone();
     let state_loaded = state_store::load_state_if_missing(&mut invocation, Some(&interaction))?;
     let state_read_hash = state_loaded.as_ref().and_then(trace::hash_value);
-    let resolved = render_card(&invocation)?;
+    let resolved = render_card(&invocation, runtime_config)?;
     let normalized_inputs = normalize_inputs(&interaction.raw_inputs);
     let mut state_updates = Vec::new();
     let mut session_updates = Vec::new();
@@ -122,16 +124,19 @@ pub fn handle_interaction(
     state_store::persist_state(&invocation, Some(&interaction), &persisted_state)?;
 
     let mut telemetry_events = Vec::new();
-    if trace::trace_enabled() {
+    if runtime_config.trace_enabled {
         let state_key = Some(state_store::state_key_for(&invocation, Some(&interaction)));
         telemetry_events.push(trace::build_trace_event(
             &invocation,
             &resolved.asset_resolution,
             &resolved.binding_summary,
-            Some(&interaction),
-            state_key,
-            state_read_hash,
-            state_write_hash,
+            &trace::TraceContext {
+                interaction: Some(interaction.clone()),
+                state_key,
+                state_read_hash,
+                state_write_hash,
+                capture_inputs: runtime_config.trace_capture_inputs,
+            },
         ));
     }
 

@@ -2,6 +2,7 @@ use std::sync::OnceLock;
 
 use serde_json::Value;
 
+use crate::config::{RuntimeConfig, resolve_locale_against, supported_locale_codes};
 use crate::i18n_bundle::{LocaleBundle, unpack_locales_from_cbor};
 use crate::model::AdaptiveCardInvocation;
 
@@ -13,42 +14,8 @@ fn bundle() -> &'static LocaleBundle {
     I18N_BUNDLE.get_or_init(|| unpack_locales_from_cbor(I18N_BUNDLE_CBOR).unwrap_or_default())
 }
 
-fn normalize_locale(raw: &str) -> Option<String> {
-    let mut cleaned = raw.trim();
-    if cleaned.is_empty() {
-        return None;
-    }
-    if let Some((head, _)) = cleaned.split_once('.') {
-        cleaned = head;
-    }
-    if let Some((head, _)) = cleaned.split_once('@') {
-        cleaned = head;
-    }
-    let cleaned = cleaned.replace('_', "-");
-    if cleaned.is_empty() {
-        None
-    } else {
-        Some(cleaned)
-    }
-}
-
 fn resolve_supported_locale(candidate: &str) -> Option<String> {
-    let normalized = normalize_locale(candidate)?;
-    for locale in bundle().keys() {
-        if locale.eq_ignore_ascii_case(&normalized) {
-            return Some(locale.clone());
-        }
-    }
-    let base = normalized
-        .split('-')
-        .next()
-        .map(|s| s.to_ascii_lowercase())?;
-    for locale in bundle().keys() {
-        if locale.eq_ignore_ascii_case(&base) {
-            return Some(locale.clone());
-        }
-    }
-    None
+    resolve_locale_against(candidate, supported_locale_codes())
 }
 
 fn extract_locale_from_session(session: &Value) -> Option<String> {
@@ -89,37 +56,55 @@ fn extract_locale_from_envelope(inv: &AdaptiveCardInvocation) -> Option<String> 
     None
 }
 
-pub fn resolve_locale(inv: &AdaptiveCardInvocation) -> String {
+pub fn resolve_locale_with_config(
+    inv: &AdaptiveCardInvocation,
+    runtime_config: &RuntimeConfig,
+) -> String {
+    if !runtime_config.multilingual {
+        return "en".to_string();
+    }
     let from_invocation = inv.locale.as_deref();
     let from_session = extract_locale_from_session(&inv.session);
     let from_envelope = extract_locale_from_envelope(inv);
 
-    if let Some(locale) = from_invocation.and_then(resolve_supported_locale) {
+    if let Some(locale) = from_invocation.and_then(|value| runtime_config.resolve_locale(value)) {
         return locale;
     }
-    if let Some(locale) = from_session.as_deref().and_then(resolve_supported_locale) {
+    if let Some(locale) = from_session
+        .as_deref()
+        .and_then(|value| runtime_config.resolve_locale(value))
+    {
         return locale;
     }
-    if let Some(locale) = from_envelope.as_deref().and_then(resolve_supported_locale) {
+    if let Some(locale) = from_envelope
+        .as_deref()
+        .and_then(|value| runtime_config.resolve_locale(value))
+    {
         return locale;
     }
     "en".to_string()
 }
 
-pub fn resolve_locale_from_raw(value: &Value) -> String {
+pub fn resolve_locale_from_raw_with_config(
+    value: &Value,
+    runtime_config: &RuntimeConfig,
+) -> String {
+    if !runtime_config.multilingual {
+        return "en".to_string();
+    }
     if let Some(locale) = value.get("locale").and_then(Value::as_str)
-        && let Some(supported) = resolve_supported_locale(locale)
+        && let Some(supported) = runtime_config.resolve_locale(locale)
     {
         return supported;
     }
     if let Some(locale) = value.get("i18n_locale").and_then(Value::as_str)
-        && let Some(supported) = resolve_supported_locale(locale)
+        && let Some(supported) = runtime_config.resolve_locale(locale)
     {
         return supported;
     }
     if let Some(session) = value.get("session")
         && let Some(locale) = extract_locale_from_session(session)
-        && let Some(supported) = resolve_supported_locale(&locale)
+        && let Some(supported) = runtime_config.resolve_locale(&locale)
     {
         return supported;
     }

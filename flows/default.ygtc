@@ -1,14 +1,86 @@
 id: ai.greentic.component-adaptive-card.default
 kind: component-config
-description: Auto-generated default config for ai.greentic.component-adaptive-card
+description: Minimal config flow for ai.greentic.component-adaptive-card
 nodes:
+  ask_config:
+    questions:
+      fields:
+      - id: default_source
+        prompt: How should cards be loaded by default?
+        type: enum
+        options: [inline, asset, catalog]
+        default: inline
+      - id: default_card_inline
+        prompt: Paste the default Adaptive Card JSON.
+        type: string
+        show_if:
+          id: default_source
+          equals: inline
+      - id: default_card_asset
+        prompt: Enter the default card asset path/reference.
+        type: string
+        show_if:
+          id: default_source
+          equals: asset
+      - id: catalog_registry_ref
+        prompt: Enter the card catalog reference. Examples: store://greentic-biz/_/adaptive-cards/default or repo://my-repo/cards/catalog.json
+        type: string
+        show_if:
+          id: default_source
+          equals: catalog
+      - id: multilingual
+        prompt: Do you want to support multiple languages?
+        type: boolean
+        default: true
+      - id: language_mode
+        prompt: Which languages do you want to support?
+        type: enum
+        options: [all, custom]
+        default: all
+        show_if:
+          id: multilingual
+          equals: true
+      - id: supported_locales
+        prompt: Enter locale codes, for example: en,en-GB,fr,de,nl
+        type: string
+        show_if:
+          id: language_mode
+          equals: custom
+    routing:
+    - to: emit_config
   emit_config:
     template: |-
       {
         "node_id": "COMPONENT_STEP",
         "node": {
           "tool": {
-            "component": "ai.greentic.component-adaptive-card"
+            "component": "ai.greentic.component-adaptive-card",
+            "default_source": {{json state.default_source}},
+            {{#ifEq state.default_source "inline"}}
+            "default_card_inline": {{json state.default_card_inline}},
+            {{/ifEq}}
+            {{#ifEq state.default_source "asset"}}
+            "default_card_asset": {{json state.default_card_asset}},
+            {{/ifEq}}
+            {{#ifEq state.default_source "catalog"}}
+            "catalog_registry_ref": {{json state.catalog_registry_ref}},
+            {{/ifEq}}
+            "multilingual": {{json state.multilingual}},
+            {{#if state.multilingual}}
+            "language_mode": {{json state.language_mode}},
+            {{#ifEq state.language_mode "custom"}}
+            "supported_locales": {{json state.supported_locales}}
+            {{else}}
+            "supported_locales": null
+            {{/ifEq}}
+            {{else}}
+            "language_mode": "all",
+            "supported_locales": null
+            {{/if}},
+            "direction_mode": "ltr",
+            "validation_mode": "warn",
+            "trace_enabled": false,
+            "trace_capture_inputs": false
           },
           "routing": [
             { "to": "NEXT_NODE_PLACEHOLDER" }

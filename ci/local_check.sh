@@ -22,6 +22,9 @@ cargo test --workspace --all-targets
 echo "Building wasm32-wasip2 (release)..."
 cargo build --target wasm32-wasip2 --release
 
+echo "Syncing dist wasm..."
+./ci/sync_dist_wasm.sh
+
 echo "Checking host:state capability wiring..."
 ./ci/check_host_state_capability.sh
 

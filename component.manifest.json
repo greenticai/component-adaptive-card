@@ -38,22 +38,73 @@
   },
   "config_schema": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "component-adaptive-card component configuration",
+    "type": "object",
     "additionalProperties": false,
     "properties": {
-      "asset_base_path": {
-        "default": "assets",
-        "description": "Optional base path for resolving catalog or asset-backed cards.",
+      "default_source": {
         "type": "string",
-        "x-default-applied": true
+        "enum": ["inline", "asset", "catalog"],
+        "default": "inline",
+        "description": "How cards should be loaded by default when an invocation does not override the source."
       },
-      "catalog_registry_file": {
-        "description": "Optional path to a JSON map of catalog names to asset paths (fallback for env-based resolution).",
+      "default_card_inline": {
+        "type": ["object", "array", "null"],
+        "default": null,
+        "description": "Default Adaptive Card JSON used when default_source is inline."
+      },
+      "default_card_asset": {
+        "type": ["string", "null"],
+        "default": null,
+        "description": "Default card asset path or reference used when default_source is asset."
+      },
+      "catalog_registry_ref": {
+        "type": ["string", "null"],
+        "default": null,
+        "description": "Catalog registry reference used when resolving catalog_name entries. Examples: store://greentic-biz/_/adaptive-cards/default or repo://my-repo/cards/catalog.json."
+      },
+      "multilingual": {
+        "type": "boolean",
+        "default": true,
+        "description": "Whether localized rendering should use supported locales beyond English."
+      },
+      "language_mode": {
         "type": "string",
-        "x-optional": true
+        "enum": ["all", "custom"],
+        "default": "all",
+        "description": "Whether to allow every built-in locale or a custom subset."
+      },
+      "supported_locales": {
+        "type": ["array", "null"],
+        "default": null,
+        "items": {
+          "type": "string"
+        },
+        "description": "Custom locale allow-list used when language_mode is custom. English remains implicit fallback behavior."
+      },
+      "direction_mode": {
+        "type": "string",
+        "enum": ["ltr", "rtl", "auto"],
+        "default": "ltr",
+        "description": "How the Adaptive Card root rtl flag should be emitted."
+      },
+      "validation_mode": {
+        "type": "string",
+        "enum": ["off", "warn", "error"],
+        "default": "warn",
+        "description": "Default invocation schema validation behavior."
+      },
+      "trace_enabled": {
+        "type": "boolean",
+        "default": false,
+        "description": "Whether to emit adaptive-card trace telemetry by default."
+      },
+      "trace_capture_inputs": {
+        "type": "boolean",
+        "default": false,
+        "description": "Whether traces may include payload, session, state, and interaction inputs."
       }
-    },
-    "title": "component-adaptive-card component configuration",
-    "type": "object"
+    }
   },
   "default_operation": "card",
   "describe_export": "describe",
@@ -61,7 +112,7 @@
     "custom": {
       "format": "flow-ir-json",
       "graph": {
-        "description": "Auto-generated custom config for ai.greentic.component-adaptive-card",
+        "description": "Setup config flow for ai.greentic.component-adaptive-card",
         "id": "ai.greentic.component-adaptive-card.custom",
         "kind": "component-config",
         "nodes": {
@@ -69,75 +120,76 @@
             "questions": {
               "fields": [
                 {
-                  "default": "inline",
-                  "id": "card_source",
-                  "options": [
-                    "inline",
-                    "asset",
-                    "catalog"
-                  ],
-                  "prompt": "Where to load the card from.",
-                  "type": "enum"
+                  "id": "default_source",
+                  "prompt": "How should cards be loaded by default?",
+                  "type": "enum",
+                  "options": ["inline", "asset", "catalog"],
+                  "default": "inline"
                 },
                 {
-                  "default": {
-                    "inline_json": {}
-                  },
-                  "id": "card_spec",
-                  "prompt": "Details for resolving the card source.",
-                  "type": "string"
+                  "id": "default_card_inline",
+                  "prompt": "Paste the default Adaptive Card JSON.",
+                  "type": "string",
+                  "show_if": { "id": "default_source", "equals": "inline" }
                 },
                 {
-                  "id": "envelope",
-                  "prompt": "Optional Greentic invocation envelope metadata.",
-                  "type": "string"
+                  "id": "default_card_asset",
+                  "prompt": "Enter the default card asset path/reference.",
+                  "type": "string",
+                  "show_if": { "id": "default_source", "equals": "asset" }
                 },
                 {
-                  "id": "interaction",
-                  "prompt": "Interaction:",
-                  "type": "string"
+                  "id": "catalog_registry_ref",
+                  "prompt": "Enter the card catalog reference. Examples: store://greentic-biz/_/adaptive-cards/default or repo://my-repo/cards/catalog.json",
+                  "type": "string",
+                  "show_if": { "id": "default_source", "equals": "catalog" }
                 },
                 {
-                  "default": "renderAndValidate",
-                  "id": "mode",
-                  "options": [
-                    "render",
-                    "validate",
-                    "renderAndValidate"
-                  ],
-                  "prompt": "Whether to render, validate only, or both.",
-                  "type": "enum"
+                  "id": "multilingual",
+                  "prompt": "Do you want to support multiple languages?",
+                  "type": "boolean",
+                  "default": true
                 },
                 {
-                  "id": "node_id",
-                  "prompt": "Optional node id used to scope persisted state and helper context.",
-                  "type": "string"
+                  "id": "language_mode",
+                  "prompt": "Which languages do you want to support?",
+                  "type": "enum",
+                  "options": ["all", "custom"],
+                  "default": "all",
+                  "show_if": { "id": "multilingual", "equals": true }
                 },
                 {
-                  "id": "payload",
-                  "prompt": "Explicit input payload used for binding/expression resolution.",
-                  "type": "string"
+                  "id": "supported_locales",
+                  "prompt": "Enter locale codes, for example: en,en-GB,fr,de,nl",
+                  "type": "string",
+                  "show_if": { "id": "language_mode", "equals": "custom" }
                 },
                 {
-                  "id": "session",
-                  "prompt": "Optional explicit session metadata (not injected by the runner).",
-                  "type": "string"
+                  "id": "direction_mode",
+                  "prompt": "Text direction",
+                  "type": "enum",
+                  "options": ["ltr", "rtl", "auto"],
+                  "default": "ltr"
                 },
                 {
-                  "id": "state",
-                  "prompt": "Optional explicit state override (persistent state uses state-store).",
-                  "type": "string"
-                },
-                {
-                  "default": "warn",
                   "id": "validation_mode",
-                  "options": [
-                    "off",
-                    "warn",
-                    "error"
-                  ],
-                  "prompt": "How to handle invocation schema validation issues.",
-                  "type": "enum"
+                  "prompt": "Validation mode",
+                  "type": "enum",
+                  "options": ["off", "warn", "error"],
+                  "default": "warn"
+                },
+                {
+                  "id": "trace_enabled",
+                  "prompt": "Enable tracing?",
+                  "type": "boolean",
+                  "default": false
+                },
+                {
+                  "id": "trace_capture_inputs",
+                  "prompt": "Include inputs in traces?",
+                  "type": "boolean",
+                  "default": false,
+                  "show_if": { "id": "trace_enabled", "equals": true }
                 }
               ]
             },
@@ -148,7 +200,7 @@
             ]
           },
           "emit_config": {
-            "template": "{\n  \"node_id\": \"component-adaptive-card\",\n  \"node\": {\n    \"card\": {\n      \"input\": {\n        \"card_source\": \"{{state.card_source}}\",\n        \"card_spec\": \"{{state.card_spec}}\",\n        \"envelope\": \"{{state.envelope}}\",\n        \"interaction\": \"{{state.interaction}}\",\n        \"mode\": \"{{state.mode}}\",\n        \"node_id\": \"{{state.node_id}}\",\n        \"payload\": \"{{state.payload}}\",\n        \"session\": \"{{state.session}}\",\n        \"state\": \"{{state.state}}\",\n        \"validation_mode\": \"{{state.validation_mode}}\"\n      }\n    },\n    \"routing\": [\n      { \"to\": \"NEXT_NODE_PLACEHOLDER\" }\n    ]\n  }\n}"
+            "template": "{\n  \"node_id\": \"component-adaptive-card\",\n  \"node\": {\n    \"tool\": {\n      \"component\": \"ai.greentic.component-adaptive-card\",\n      \"default_source\": {{json state.default_source}},\n      {{#ifEq state.default_source \"inline\"}}\n      \"default_card_inline\": {{json state.default_card_inline}},\n      {{/ifEq}}\n      {{#ifEq state.default_source \"asset\"}}\n      \"default_card_asset\": {{json state.default_card_asset}},\n      {{/ifEq}}\n      {{#ifEq state.default_source \"catalog\"}}\n      \"catalog_registry_ref\": {{json state.catalog_registry_ref}},\n      {{/ifEq}}\n      \"multilingual\": {{json state.multilingual}},\n      {{#if state.multilingual}}\n      \"language_mode\": {{json state.language_mode}},\n      {{#ifEq state.language_mode \"custom\"}}\n      \"supported_locales\": {{json state.supported_locales}},\n      {{/ifEq}}\n      {{/if}}\n      \"direction_mode\": {{json state.direction_mode}},\n      \"validation_mode\": {{json state.validation_mode}},\n      \"trace_enabled\": {{json state.trace_enabled}},\n      {{#if state.trace_enabled}}\n      \"trace_capture_inputs\": {{json state.trace_capture_inputs}}\n      {{else}}\n      \"trace_capture_inputs\": false\n      {{/if}}\n    },\n    \"routing\": [\n      { \"to\": \"NEXT_NODE_PLACEHOLDER\" },\n      { \"out\": true }\n    ]\n  }\n}"
           }
         }
       }
@@ -156,12 +208,68 @@
     "default": {
       "format": "flow-ir-json",
       "graph": {
-        "description": "Auto-generated default config for ai.greentic.component-adaptive-card",
+        "description": "Minimal config flow for ai.greentic.component-adaptive-card",
         "id": "ai.greentic.component-adaptive-card.default",
         "kind": "component-config",
         "nodes": {
+          "ask_config": {
+            "questions": {
+              "fields": [
+                {
+                  "id": "default_source",
+                  "prompt": "How should cards be loaded by default?",
+                  "type": "enum",
+                  "options": ["inline", "asset", "catalog"],
+                  "default": "inline"
+                },
+                {
+                  "id": "default_card_inline",
+                  "prompt": "Paste the default Adaptive Card JSON.",
+                  "type": "string",
+                  "show_if": { "id": "default_source", "equals": "inline" }
+                },
+                {
+                  "id": "default_card_asset",
+                  "prompt": "Enter the default card asset path/reference.",
+                  "type": "string",
+                  "show_if": { "id": "default_source", "equals": "asset" }
+                },
+                {
+                  "id": "catalog_registry_ref",
+                  "prompt": "Enter the card catalog reference. Examples: store://greentic-biz/_/adaptive-cards/default or repo://my-repo/cards/catalog.json",
+                  "type": "string",
+                  "show_if": { "id": "default_source", "equals": "catalog" }
+                },
+                {
+                  "id": "multilingual",
+                  "prompt": "Do you want to support multiple languages?",
+                  "type": "boolean",
+                  "default": true
+                },
+                {
+                  "id": "language_mode",
+                  "prompt": "Which languages do you want to support?",
+                  "type": "enum",
+                  "options": ["all", "custom"],
+                  "default": "all",
+                  "show_if": { "id": "multilingual", "equals": true }
+                },
+                {
+                  "id": "supported_locales",
+                  "prompt": "Enter locale codes, for example: en,en-GB,fr,de,nl",
+                  "type": "string",
+                  "show_if": { "id": "language_mode", "equals": "custom" }
+                }
+              ]
+            },
+            "routing": [
+              {
+                "to": "emit_config"
+              }
+            ]
+          },
           "emit_config": {
-            "template": "{\n  \"node_id\": \"component-adaptive-card\",\n  \"node\": {\n    \"card\": {\n      \"input\": {\n        \"card_spec\": {\"inline_json\":{}}\n      }\n    },\n    \"routing\": [\n      { \"to\": \"NEXT_NODE_PLACEHOLDER\" }\n    ]\n  }\n}"
+            "template": "{\n  \"node_id\": \"component-adaptive-card\",\n  \"node\": {\n    \"tool\": {\n      \"component\": \"ai.greentic.component-adaptive-card\",\n      \"default_source\": {{json state.default_source}},\n      {{#ifEq state.default_source \"inline\"}}\n      \"default_card_inline\": {{json state.default_card_inline}},\n      {{/ifEq}}\n      {{#ifEq state.default_source \"asset\"}}\n      \"default_card_asset\": {{json state.default_card_asset}},\n      {{/ifEq}}\n      {{#ifEq state.default_source \"catalog\"}}\n      \"catalog_registry_ref\": {{json state.catalog_registry_ref}},\n      {{/ifEq}}\n      \"multilingual\": {{json state.multilingual}},\n      {{#if state.multilingual}}\n      \"language_mode\": {{json state.language_mode}},\n      {{#ifEq state.language_mode \"custom\"}}\n      \"supported_locales\": {{json state.supported_locales}}\n      {{else}}\n      \"supported_locales\": null\n      {{/ifEq}}\n      {{else}}\n      \"language_mode\": \"all\",\n      \"supported_locales\": null\n      {{/if}},\n      \"direction_mode\": \"ltr\",\n      \"validation_mode\": \"warn\",\n      \"trace_enabled\": false,\n      \"trace_capture_inputs\": false\n    },\n    \"routing\": [\n      { \"to\": \"NEXT_NODE_PLACEHOLDER\" }\n    ]\n  }\n}"
           }
         }
       }
@@ -178,260 +286,160 @@
   "name": "component-adaptive-card",
   "operations": [
     {
+      "name": "card",
       "input_schema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "Adaptive Card invocation input",
+        "type": "object",
+        "additionalProperties": true,
         "properties": {
-          "card_source": {
-            "default": "inline",
-            "description": "Where to load the card from.",
-            "enum": [
-              "inline",
-              "asset",
-              "catalog"
-            ],
-            "type": "string"
-          },
-          "card_spec": {
-            "default": {
-              "inline_json": {}
-            },
-            "description": "Details for resolving the card source.",
-            "properties": {
-              "asset_path": {
-                "type": "string"
-              },
-              "asset_registry": {
-                "additionalProperties": {
-                  "type": "string"
-                },
-                "description": "Optional mapping of asset or catalog names to concrete paths.",
-                "type": "object"
-              },
-              "catalog_name": {
-                "type": "string"
-              },
-              "inline_json": {
-                "type": [
-                  "object",
-                  "array"
-                ]
-              },
-              "template_params": {
-                "type": [
-                  "object",
-                  "array"
-                ]
-              }
-            },
-            "type": "object"
-          },
           "envelope": {
             "description": "Optional Greentic invocation envelope metadata.",
             "type": "object"
           },
-          "interaction": {
+          "card_source": {
+            "type": "string",
+            "enum": ["inline", "asset", "catalog"],
+            "default": "inline",
+            "description": "Per-call override for where to load the card from."
+          },
+          "card_spec": {
+            "type": "object",
+            "description": "Per-call details for resolving the card source. When omitted, component config defaults may supply the card source details.",
             "properties": {
-              "action_id": {
+              "inline_json": {
+                "type": ["object", "array"]
+              },
+              "asset_path": {
                 "type": "string"
               },
-              "card_instance_id": {
-                "type": "string"
+              "catalog_name": {
+                "type": "string",
+                "description": "Catalog entry name to resolve through the configured catalog registry."
               },
+              "template_params": {
+                "type": ["object", "array"]
+              },
+              "asset_registry": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "description": "Optional inline mapping of asset or catalog names to concrete paths."
+              }
+            }
+          },
+          "node_id": {
+            "type": "string",
+            "description": "Optional node id used to scope persisted state and helper context."
+          },
+          "locale": {
+            "type": "string",
+            "description": "Preferred locale for this render. Overrides session and envelope locale when valid."
+          },
+          "i18n_locale": {
+            "type": "string",
+            "description": "Deprecated alias for locale retained for compatibility."
+          },
+          "payload": {
+            "type": ["object", "array", "null"],
+            "description": "Explicit input payload used for binding and expression resolution."
+          },
+          "session": {
+            "type": ["object", "array", "null"],
+            "description": "Optional explicit session metadata."
+          },
+          "state": {
+            "type": ["object", "array", "null"],
+            "description": "Optional explicit state override. Persistent state still uses the Greentic state store."
+          },
+          "interaction": {
+            "type": "object",
+            "required": ["interaction_type", "action_id", "card_instance_id"],
+            "properties": {
               "enabled": {
                 "type": "boolean"
               },
               "interaction_type": {
-                "enum": [
-                  "Submit",
-                  "Execute",
-                  "OpenUrl",
-                  "ShowCard",
-                  "ToggleVisibility"
-                ],
+                "type": "string",
+                "enum": ["Submit", "Execute", "OpenUrl", "ShowCard", "ToggleVisibility"]
+              },
+              "action_id": {
+                "type": "string"
+              },
+              "verb": {
+                "type": ["string", "null"]
+              },
+              "raw_inputs": {
+                "type": ["object", "array", "string", "null"]
+              },
+              "card_instance_id": {
                 "type": "string"
               },
               "metadata": {
-                "type": [
-                  "object",
-                  "array",
-                  "null"
-                ]
-              },
-              "raw_inputs": {
-                "type": [
-                  "object",
-                  "array",
-                  "string",
-                  "null"
-                ]
-              },
-              "verb": {
-                "type": [
-                  "string",
-                  "null"
-                ]
+                "type": ["object", "array", "null"]
               }
-            },
-            "required": [
-              "interaction_type",
-              "action_id",
-              "card_instance_id"
-            ],
-            "type": "object"
+            }
           },
           "mode": {
+            "type": "string",
+            "enum": ["render", "validate", "renderAndValidate"],
             "default": "renderAndValidate",
-            "description": "Whether to render, validate only, or both.",
-            "enum": [
-              "render",
-              "validate",
-              "renderAndValidate"
-            ],
-            "type": "string"
-          },
-          "node_id": {
-            "description": "Optional node id used to scope persisted state and helper context.",
-            "type": "string"
-          },
-          "payload": {
-            "description": "Explicit input payload used for binding/expression resolution.",
-            "type": [
-              "object",
-              "array",
-              "null"
-            ]
-          },
-          "session": {
-            "description": "Optional explicit session metadata (not injected by the runner).",
-            "type": [
-              "object",
-              "array",
-              "null"
-            ]
-          },
-          "state": {
-            "description": "Optional explicit state override (persistent state uses state-store).",
-            "type": [
-              "object",
-              "array",
-              "null"
-            ]
+            "description": "Whether to render, validate only, or both."
           },
           "validation_mode": {
+            "type": "string",
+            "enum": ["off", "warn", "error"],
             "default": "warn",
-            "description": "How to handle invocation schema validation issues.",
-            "enum": [
-              "off",
-              "warn",
-              "error"
-            ],
-            "type": "string"
+            "description": "Per-call override for invocation schema validation issues."
           }
-        },
-        "required": [
-          "card_spec"
-        ],
-        "title": "Adaptive Card invocation input",
-        "type": "object"
+        }
       },
-      "name": "card",
       "output_schema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "Adaptive Card result output",
+        "type": "object",
         "properties": {
-          "card_features": {
-            "properties": {
-              "requires_features": {
-                "type": [
-                  "object",
-                  "array",
-                  "null"
-                ]
-              },
-              "used_actions": {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              "used_elements": {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              "uses_auth": {
-                "type": "boolean"
-              },
-              "uses_media": {
-                "type": "boolean"
-              },
-              "uses_show_card": {
-                "type": "boolean"
-              },
-              "uses_toggle_visibility": {
-                "type": "boolean"
-              },
-              "version": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              }
-            },
-            "type": "object"
-          },
-          "event": {
-            "type": [
-              "object",
-              "null"
-            ]
-          },
-          "rendered_card": {
-            "type": [
-              "object",
-              "array",
-              "null"
-            ]
+          "rendered_card": { "type": ["object", "array", "null"] },
+          "event": { "type": ["object", "null"] },
+          "state_updates": {
+            "type": "array",
+            "items": { "type": "object" }
           },
           "session_updates": {
-            "items": {
-              "type": "object"
-            },
-            "type": "array"
+            "type": "array",
+            "items": { "type": "object" }
           },
-          "state_updates": {
-            "items": {
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "telemetry_events": {
-            "items": {
-              "type": "object"
-            },
-            "type": "array"
+          "card_features": {
+            "type": "object",
+            "properties": {
+              "version": { "type": ["string", "null"] },
+              "used_elements": { "type": "array", "items": { "type": "string" } },
+              "used_actions": { "type": "array", "items": { "type": "string" } },
+              "uses_show_card": { "type": "boolean" },
+              "uses_toggle_visibility": { "type": "boolean" },
+              "uses_media": { "type": "boolean" },
+              "uses_auth": { "type": "boolean" },
+              "requires_features": { "type": ["object", "array", "null"] }
+            }
           },
           "validation_issues": {
-            "items": {
-              "type": "object"
-            },
-            "type": "array"
+            "type": "array",
+            "items": { "type": "object" }
+          },
+          "telemetry_events": {
+            "type": "array",
+            "items": { "type": "object" }
           }
-        },
-        "title": "Adaptive Card result output",
-        "type": "object"
+        }
       }
     }
   ],
   "profiles": {
     "default": "stateless",
-    "supported": [
-      "stateless"
-    ]
+    "supported": ["stateless"]
   },
-  "supports": [
-    "messaging"
-  ],
-  "version": "0.1.18",
+  "supports": ["messaging"],
+  "version": "0.1.20",
   "world": "greentic:component/component-v0-v6-v0@0.6.0"
 }

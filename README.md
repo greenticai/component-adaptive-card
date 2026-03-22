@@ -6,6 +6,73 @@ This component is designed to be used inside Greentic flows (via `greentic-dev f
 
 ---
 
+## Component config vs operation input
+
+The component now uses a single canonical component-config surface for install/setup defaults:
+
+- `default_source`
+- `default_card_inline`
+- `default_card_asset`
+- `catalog_registry_ref`
+- `multilingual`
+- `language_mode`
+- `supported_locales`
+- `direction_mode`
+- `validation_mode`
+- `trace_enabled`
+- `trace_capture_inputs`
+
+Operation input stays focused on per-call overrides:
+
+- `card_source`
+- `card_spec`
+- `locale`
+- `payload`
+- `session`
+- `state`
+- `interaction`
+- `mode`
+- `validation_mode`
+- `node_id`
+- `envelope`
+
+Runtime precedence is:
+
+1. explicit operation input override
+2. component config
+3. deprecated env-var fallback
+4. hardcoded default
+
+English (`en`) is always the implicit baseline and fallback locale.
+
+## Multilingual and direction behavior
+
+- `multilingual = false` forces English rendering behavior
+- `multilingual = true` with `language_mode = all` allows the built-in locale set from `config/supported_locales.json`
+- `multilingual = true` with `language_mode = custom` uses `supported_locales`, with English still retained as fallback
+- `direction_mode = ltr` emits `"rtl": false`
+- `direction_mode = rtl` emits `"rtl": true`
+- `direction_mode = auto` infers direction from locale and currently treats Arabic variants as RTL
+
+At render time the component injects Adaptive Card root `lang` and `rtl`.
+
+## Catalog registry refs
+
+Use `catalog_registry_ref` for distributable catalog sources, for example:
+
+- `store://greentic-biz/_/adaptive-cards/default`
+- `repo://my-repo/cards/catalog.json`
+
+What is implemented today:
+
+- `repo://...` refs are resolved as local repo-relative paths in native/local execution
+- `store://...` refs require host/distributor resolution and can be satisfied through the existing host asset resolver hook
+- legacy `ADAPTIVE_CARD_CATALOG_FILE` and `ADAPTIVE_CARD_ASSET_REGISTRY` env vars remain as deprecated fallback only
+
+The component does not perform remote distributor fetches by itself inside the wasm runtime.
+
+---
+
 ## Greentic ABI compatibility
 
 - Component ABI: `greentic:component/component@0.6.0`
@@ -83,10 +150,7 @@ The goal is to preserve **intent**, even when rich UI is unavailable.
 
 ### Add step (default mode)
 
-Default mode assumes:
-- `card_source = asset`
-- You provide `card_spec.asset_path`
-- Optional interaction placeholders
+Default mode now centers on component config, not invocation defaults.
 
 ```bash
 greentic-dev flow add-step \
@@ -94,7 +158,7 @@ greentic-dev flow add-step \
   --after start \
   --node-id adaptive-card \
   --operation card \
-  --payload '{"card_source":"asset","card_spec":{"asset_path":"card.json","template_params":{}},"mode":"renderAndValidate"}' \
+  --payload '{"card_source":"asset","card_spec":{"asset_path":"card.json","template_params":{}},"locale":"en","mode":"renderAndValidate"}' \
   --component oci://ghcr.io/greentic-ai/components/component-adaptive-card:latest
 ```
 
@@ -129,13 +193,14 @@ greentic-dev flow add-step \
   --manifest component.manifest.json
 ```
 
-Config mode allows:
-- Selecting card source (`asset`, `inline`, `catalog`)
-- Full card spec configuration
-- Template parameters and binding context
-- Render / validate behavior
-- Interaction placeholders
-- Output and debug options
+Config mode now drives the canonical component config:
+- selecting default source (`inline`, `asset`, `catalog`)
+- default inline card or asset path
+- catalog registry refs such as `store://greentic-biz/_/adaptive-cards/default`
+- multilingual support
+- custom locales such as `en,en-GB,fr,de,nl`
+- text direction (`ltr`, `rtl`, `auto`)
+- validation and tracing defaults
 
 ---
 

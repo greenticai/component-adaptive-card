@@ -2,7 +2,6 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Adaptive Card invocation v1",
   "type": "object",
-  "required": ["card_spec"],
   "properties": {
     "card_source": {
       "type": "string",
@@ -12,17 +11,35 @@
     "card_spec": {
       "type": "object",
       "properties": {
-        "inline_json": { "type": ["object", "array"] },
-        "asset_path": { "type": "string" },
-        "catalog_name": { "type": "string" },
-        "template_params": { "type": ["object", "array"] },
+        "inline_json": {
+          "type": ["object", "array"]
+        },
+        "asset_path": {
+          "type": "string"
+        },
+        "catalog_name": {
+          "type": "string"
+        },
+        "template_params": {
+          "type": ["object", "array"]
+        },
         "asset_registry": {
           "type": "object",
-          "additionalProperties": { "type": "string" }
+          "additionalProperties": {
+            "type": "string"
+          }
         }
       }
     },
-    "node_id": { "type": "string" },
+    "node_id": {
+      "type": "string"
+    },
+    "locale": {
+      "type": "string"
+    },
+    "i18n_locale": {
+      "type": "string"
+    },
     "payload": {
       "type": ["object", "array", "null"]
     },
@@ -36,16 +53,28 @@
       "type": "object",
       "required": ["interaction_type", "action_id", "card_instance_id"],
       "properties": {
-        "enabled": { "type": "boolean" },
+        "enabled": {
+          "type": "boolean"
+        },
         "interaction_type": {
           "type": "string",
           "enum": ["Submit", "Execute", "OpenUrl", "ShowCard", "ToggleVisibility"]
         },
-        "action_id": { "type": "string" },
-        "verb": { "type": ["string", "null"] },
-        "raw_inputs": { "type": ["object", "array", "string", "null"] },
-        "card_instance_id": { "type": "string" },
-        "metadata": { "type": ["object", "array", "null"] }
+        "action_id": {
+          "type": "string"
+        },
+        "verb": {
+          "type": ["string", "null"]
+        },
+        "raw_inputs": {
+          "type": ["object", "array", "string", "null"]
+        },
+        "card_instance_id": {
+          "type": "string"
+        },
+        "metadata": {
+          "type": ["object", "array", "null"]
+        }
       }
     },
     "mode": {

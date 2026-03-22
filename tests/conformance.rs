@@ -7,6 +7,11 @@ use serde_json::json;
 #[cfg(not(target_arch = "wasm32"))]
 use std::fs;
 
+fn manifest_json() -> serde_json::Value {
+    serde_json::from_str(include_str!("../component.manifest.json"))
+        .expect("component manifest should be valid json")
+}
+
 fn base_invocation(card: serde_json::Value) -> AdaptiveCardInvocation {
     AdaptiveCardInvocation {
         card_source: CardSource::Inline,
@@ -63,6 +68,59 @@ fn describe_mentions_world() {
 }
 
 #[test]
+fn manifest_dev_flows_use_conditional_questions() {
+    let manifest = manifest_json();
+    let default_fields =
+        manifest["dev_flows"]["default"]["graph"]["nodes"]["ask_config"]["questions"]["fields"]
+            .as_array()
+            .expect("default flow fields");
+    let custom_fields =
+        manifest["dev_flows"]["custom"]["graph"]["nodes"]["ask_config"]["questions"]["fields"]
+            .as_array()
+            .expect("custom flow fields");
+
+    let inline_default = default_fields
+        .iter()
+        .find(|field| field["id"] == "default_card_inline")
+        .expect("default inline field");
+    assert_eq!(inline_default["show_if"]["id"], "default_source");
+    assert_eq!(inline_default["show_if"]["equals"], "inline");
+
+    let asset_default = default_fields
+        .iter()
+        .find(|field| field["id"] == "default_card_asset")
+        .expect("default asset field");
+    assert_eq!(asset_default["show_if"]["equals"], "asset");
+
+    let catalog_default = default_fields
+        .iter()
+        .find(|field| field["id"] == "catalog_registry_ref")
+        .expect("default catalog field");
+    assert_eq!(catalog_default["show_if"]["equals"], "catalog");
+
+    let language_mode_default = default_fields
+        .iter()
+        .find(|field| field["id"] == "language_mode")
+        .expect("default language mode field");
+    assert_eq!(language_mode_default["show_if"]["id"], "multilingual");
+    assert_eq!(language_mode_default["show_if"]["equals"], true);
+
+    let locales_default = default_fields
+        .iter()
+        .find(|field| field["id"] == "supported_locales")
+        .expect("default locales field");
+    assert_eq!(locales_default["show_if"]["id"], "language_mode");
+    assert_eq!(locales_default["show_if"]["equals"], "custom");
+
+    let trace_capture_custom = custom_fields
+        .iter()
+        .find(|field| field["id"] == "trace_capture_inputs")
+        .expect("custom trace capture field");
+    assert_eq!(trace_capture_custom["show_if"]["id"], "trace_enabled");
+    assert_eq!(trace_capture_custom["show_if"]["equals"], true);
+}
+
+#[test]
 fn inline_render_returns_card_and_features() {
     let card = json!({
         "type": "AdaptiveCard",
@@ -73,8 +131,12 @@ fn inline_render_returns_card_and_features() {
     });
     let invocation = base_invocation(card.clone());
     let result = handle_invocation(invocation).expect("render should succeed");
-
-    assert_eq!(result.rendered_card, Some(card));
+    let rendered = result.rendered_card.expect("card should render");
+    assert_eq!(rendered["type"], card["type"]);
+    assert_eq!(rendered["version"], card["version"]);
+    assert_eq!(rendered["body"], card["body"]);
+    assert_eq!(rendered["lang"], "en");
+    assert_eq!(rendered["rtl"], false);
     assert!(
         result
             .card_features
@@ -480,11 +542,145 @@ fn i18n_marker_uses_envelope_locale_when_others_missing() {
 }
 
 #[test]
+fn official_locale_field_sets_root_lang() {
+    let card = json!({
+        "type": "AdaptiveCard",
+        "version": "1.6",
+        "body": [{ "type": "TextBlock", "text": "Hello" }]
+    });
+    let mut invocation = base_invocation(card);
+    invocation.locale = Some("fr".to_string());
+
+    let result = handle_invocation(invocation).expect("render should succeed");
+    let rendered = result.rendered_card.expect("card should render");
+    assert_eq!(rendered["lang"], "fr");
+    assert_eq!(rendered["rtl"], false);
+}
+
+#[test]
+fn deprecated_i18n_locale_alias_is_still_accepted() {
+    let input = serde_json::json!({
+        "i18n_locale": "ar",
+        "card_source": "inline",
+        "card_spec": {
+            "inline_json": {
+                "type": "AdaptiveCard",
+                "version": "1.6",
+                "body": [{ "type": "TextBlock", "text": "Hello" }]
+            }
+        }
+    });
+    let output = component_adaptive_card::handle_message("card", &input.to_string());
+    let parsed: serde_json::Value = serde_json::from_str(&output).expect("render output");
+    assert_eq!(parsed["renderedCard"]["lang"], "ar");
+}
+
+#[test]
+fn config_defaults_supply_inline_card_at_runtime() {
+    let input = serde_json::json!({
+        "config": {
+            "default_source": "inline",
+            "default_card_inline": {
+                "type": "AdaptiveCard",
+                "version": "1.6",
+                "body": [{ "type": "TextBlock", "text": "Configured default" }]
+            }
+        },
+        "card_spec": {},
+        "payload": { "user": { "name": "Ada" } }
+    });
+    let output = component_adaptive_card::handle_message("card", &input.to_string());
+    let parsed: serde_json::Value = serde_json::from_str(&output).expect("render output");
+    assert_eq!(
+        parsed["renderedCard"]["body"][0]["text"],
+        "Configured default"
+    );
+}
+
+#[test]
+fn auto_direction_marks_arabic_locales_as_rtl() {
+    let input = serde_json::json!({
+        "config": {
+            "default_source": "inline",
+            "default_card_inline": {
+                "type": "AdaptiveCard",
+                "version": "1.6",
+                "body": [{ "type": "TextBlock", "text": "مرحبا" }]
+            },
+            "multilingual": true,
+            "language_mode": "all",
+            "direction_mode": "auto"
+        },
+        "card_spec": {},
+        "locale": "ar-SA"
+    });
+    let output = component_adaptive_card::handle_message("card", &input.to_string());
+    let parsed: serde_json::Value = serde_json::from_str(&output).expect("render output");
+    assert_eq!(parsed["renderedCard"]["lang"], "ar-SA");
+    assert_eq!(parsed["renderedCard"]["rtl"], true);
+}
+
+#[test]
+fn custom_locale_mode_filters_unsupported_requested_locale() {
+    let input = serde_json::json!({
+        "config": {
+            "default_source": "inline",
+            "default_card_inline": {
+                "type": "AdaptiveCard",
+                "version": "1.6",
+                "body": [{ "type": "TextBlock", "text": "Hello" }]
+            },
+            "multilingual": true,
+            "language_mode": "custom",
+            "supported_locales": ["en", "fr"],
+            "direction_mode": "auto"
+        },
+        "card_spec": {},
+        "locale": "de"
+    });
+    let output = component_adaptive_card::handle_message("card", &input.to_string());
+    let parsed: serde_json::Value = serde_json::from_str(&output).expect("render output");
+    assert_eq!(parsed["renderedCard"]["lang"], "en");
+    assert_eq!(parsed["renderedCard"]["rtl"], false);
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+#[test]
+fn repo_catalog_registry_ref_resolves_catalog_mapping() {
+    let temp_root = std::env::temp_dir().join("adaptive-card-repo-ref-test");
+    fs::create_dir_all(temp_root.join("cards")).unwrap();
+    let original = std::env::current_dir().unwrap();
+    let sample_card = original.join("tests/assets/cards/simple.json");
+    fs::write(
+        temp_root.join("cards/catalog.json"),
+        serde_json::to_string(&json!({ "sample": sample_card.to_string_lossy() })).unwrap(),
+    )
+    .unwrap();
+    std::env::set_current_dir(&temp_root).unwrap();
+
+    let input = serde_json::json!({
+        "config": {
+            "default_source": "catalog",
+            "catalog_registry_ref": "repo://my-repo/cards/catalog.json"
+        },
+        "card_source": "catalog",
+        "card_spec": {
+            "catalog_name": "sample"
+        }
+    });
+    let output = component_adaptive_card::handle_message("card", &input.to_string());
+    std::env::set_current_dir(original).unwrap();
+
+    let parsed: serde_json::Value = serde_json::from_str(&output).expect("render output");
+    assert_eq!(parsed["renderedCard"]["type"], "AdaptiveCard");
+}
+
+#[test]
 fn runtime_errors_emit_msg_key_and_localized_message() {
     let input = serde_json::json!({
         "locale": "en-GB",
         "payload": {
-            "card_source": "inline",
+            "card_source": "asset",
             "card_spec": {}
         }
     });

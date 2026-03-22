@@ -45,6 +45,33 @@ greentic-component test \
   --pretty
 ```
 
+Example with component config defaults:
+
+```bash
+greentic-component test \
+  --wasm target/wasm32-wasip2/release/component_adaptive_card.wasm \
+  --manifest ./component.manifest.json \
+  --input-json '{
+    "config": {
+      "default_source": "inline",
+      "default_card_inline": {
+        "type": "AdaptiveCard",
+        "version": "1.6",
+        "body": [
+          { "type": "TextBlock", "text": "Hello {{payload.user.name}}" }
+        ]
+      },
+      "multilingual": true,
+      "language_mode": "custom",
+      "supported_locales": ["en", "en-GB", "fr", "de", "nl"],
+      "direction_mode": "auto"
+    },
+    "locale": "en-GB",
+    "payload": { "user": { "name": "Greentic" } }
+  }' \
+  --pretty
+```
+
 Optional flags:
 - `--state-dump` to show the in-memory state after the call.
 - `--secret KEY=VALUE` or `--secrets .env` to inject secrets.
@@ -117,3 +144,16 @@ Build a gtpack and run via the runner CLI to verify end-to-end packaging and exe
 ```bash
 ci/component_pack_smoke.sh
 ```
+
+## Compatibility notes
+
+- Preferred per-call locale field: `locale`
+- Deprecated per-call alias: `i18n_locale`
+- Preferred catalog source config: `catalog_registry_ref`
+- Deprecated env fallbacks:
+  - `ADAPTIVE_CARD_ASSET_BASE`
+  - `ADAPTIVE_CARD_ASSET_REGISTRY`
+  - `ADAPTIVE_CARD_CATALOG_FILE`
+  - `GREENTIC_TRACE`
+  - `GREENTIC_TRACE_OUT`
+  - `GREENTIC_TRACE_CAPTURE_INPUTS`

@@ -5,6 +5,7 @@ use handlebars::Handlebars;
 use serde_json::{Map, Value};
 
 use crate::asset_resolver::resolve_with_host;
+use crate::config::{RuntimeConfig, env_asset_registry, load_registry_map, resolve_reference_path};
 use crate::error::ComponentError;
 use crate::expression::{ExpressionEngine, SimpleExpressionEngine, stringify_value};
 use crate::i18n;
@@ -36,11 +37,15 @@ pub struct RenderOutcome {
     pub binding_summary: BindingSummary,
 }
 
-pub fn render_card(inv: &AdaptiveCardInvocation) -> Result<RenderOutcome, ComponentError> {
-    let locale = i18n::resolve_locale(inv);
+pub fn render_card(
+    inv: &AdaptiveCardInvocation,
+    runtime_config: &RuntimeConfig,
+) -> Result<RenderOutcome, ComponentError> {
+    let locale = i18n::resolve_locale_with_config(inv, runtime_config);
     let mut summary = BindingSummary::default();
-    let (mut card, asset_resolution) = resolve_card(inv)?;
+    let (mut card, asset_resolution) = resolve_card(inv, runtime_config)?;
     apply_i18n_markers(&mut card, &locale);
+    apply_root_locale_metadata(&mut card, &locale, runtime_config);
     apply_handlebars(&mut card, inv, &mut summary)?;
     let ctx = BindingContext::from_invocation(inv);
     let engine = SimpleExpressionEngine;
@@ -58,7 +63,10 @@ pub fn render_card(inv: &AdaptiveCardInvocation) -> Result<RenderOutcome, Compon
     })
 }
 
-fn resolve_card(inv: &AdaptiveCardInvocation) -> Result<(Value, AssetResolution), ComponentError> {
+fn resolve_card(
+    inv: &AdaptiveCardInvocation,
+    runtime_config: &RuntimeConfig,
+) -> Result<(Value, AssetResolution), ComponentError> {
     match inv.card_source {
         CardSource::Inline => {
             let card =
@@ -81,7 +89,8 @@ fn resolve_card(inv: &AdaptiveCardInvocation) -> Result<(Value, AssetResolution)
                 .asset_path
                 .as_ref()
                 .ok_or_else(|| ComponentError::InvalidInput("asset_path is required".into()))?;
-            let candidates = candidate_asset_paths(path, inv.card_spec.asset_registry.as_ref())?;
+            let candidates =
+                candidate_asset_paths(path, inv.card_spec.asset_registry.as_ref(), runtime_config)?;
             load_with_candidates(path, candidates)
         }
         CardSource::Catalog => {
@@ -90,17 +99,27 @@ fn resolve_card(inv: &AdaptiveCardInvocation) -> Result<(Value, AssetResolution)
                     ComponentError::InvalidInput("catalog_name is required".into())
                 })?;
             let normalized = catalog.trim_start_matches('/');
-            let candidates = candidate_catalog_paths(normalized, &inv.card_spec)?;
+            let candidates = candidate_catalog_paths(normalized, &inv.card_spec, runtime_config)?;
             load_with_candidates(normalized, candidates)
         }
     }
 }
 
-fn resolve_catalog_mapping(name: &str, spec: &CardSpec) -> Result<Option<String>, ComponentError> {
+fn resolve_catalog_mapping(
+    name: &str,
+    spec: &CardSpec,
+    runtime_config: &RuntimeConfig,
+) -> Result<Option<String>, ComponentError> {
     if let Some(registry) = spec.asset_registry.as_ref()
         && let Some(path) = registry.get(name)
     {
         return Ok(Some(path.to_string()));
+    }
+    if let Some(registry_ref) = runtime_config.catalog_registry_ref.as_deref() {
+        let map = load_registry_map(registry_ref)?;
+        if let Some(path) = map.get(name) {
+            return Ok(Some(path.to_string()));
+        }
     }
     if let Some(env_registry) = env_asset_registry()?
         && let Some(path) = env_registry.get(name)
@@ -126,26 +145,10 @@ fn resolve_catalog_mapping(name: &str, spec: &CardSpec) -> Result<Option<String>
     }
 }
 
-fn env_asset_registry() -> Result<Option<BTreeMap<String, String>>, ComponentError> {
-    #[cfg(target_arch = "wasm32")]
-    {
-        Ok(None)
-    }
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        let file = match std::env::var("ADAPTIVE_CARD_ASSET_REGISTRY") {
-            Ok(path) => path,
-            Err(_) => return Ok(None),
-        };
-        let content = std::fs::read_to_string(file)?;
-        let map: BTreeMap<String, String> = serde_json::from_str(&content)?;
-        Ok(Some(map))
-    }
-}
-
 fn candidate_asset_paths(
     path: &str,
     registry: Option<&BTreeMap<String, String>>,
+    runtime_config: &RuntimeConfig,
 ) -> Result<Vec<String>, ComponentError> {
     let mut candidates = Vec::new();
     let mut seen = HashSet::new();
@@ -174,7 +177,7 @@ fn candidate_asset_paths(
     {
         push(path.to_string(), &mut seen, &mut candidates);
     } else {
-        let base = asset_base_path();
+        let base = runtime_config.asset_base_path.clone();
         let joined = PathBuf::from(base).join(path).to_string_lossy().to_string();
         push(joined, &mut seen, &mut candidates);
         push(path.to_string(), &mut seen, &mut candidates);
@@ -183,7 +186,11 @@ fn candidate_asset_paths(
     Ok(candidates)
 }
 
-fn candidate_catalog_paths(name: &str, spec: &CardSpec) -> Result<Vec<String>, ComponentError> {
+fn candidate_catalog_paths(
+    name: &str,
+    spec: &CardSpec,
+    runtime_config: &RuntimeConfig,
+) -> Result<Vec<String>, ComponentError> {
     let mut candidates = Vec::new();
     let mut seen = HashSet::new();
     let push = |value: String, seen: &mut HashSet<String>, list: &mut Vec<String>| {
@@ -192,11 +199,11 @@ fn candidate_catalog_paths(name: &str, spec: &CardSpec) -> Result<Vec<String>, C
         }
     };
 
-    if let Some(mapped) = resolve_catalog_mapping(name, spec)? {
+    if let Some(mapped) = resolve_catalog_mapping(name, spec, runtime_config)? {
         push(mapped, &mut seen, &mut candidates);
     }
 
-    let base = asset_base_path();
+    let base = runtime_config.asset_base_path.clone();
     let path = format!("{}/{}.json", base, name);
     push(path, &mut seen, &mut candidates);
     if Path::new(name).is_absolute() || name.contains('/') || name.ends_with(".json") {
@@ -206,12 +213,9 @@ fn candidate_catalog_paths(name: &str, spec: &CardSpec) -> Result<Vec<String>, C
     Ok(candidates)
 }
 
-fn asset_base_path() -> String {
-    std::env::var("ADAPTIVE_CARD_ASSET_BASE").unwrap_or_else(|_| "assets".to_string())
-}
-
 fn load_card_from_path(path: &str) -> Result<(Value, String), ComponentError> {
-    let content = std::fs::read_to_string(path).map_err(|err| {
+    let resolved_path = resolve_reference_path(path)?;
+    let content = std::fs::read_to_string(&resolved_path).map_err(|err| {
         if err.kind() == std::io::ErrorKind::NotFound {
             ComponentError::AssetNotFound(path.to_string())
         } else {
@@ -219,9 +223,20 @@ fn load_card_from_path(path: &str) -> Result<(Value, String), ComponentError> {
         }
     })?;
     let json: Value = serde_json::from_str(&content)
-        .map_err(|err| ComponentError::AssetParse(format!("{path}: {err}")))?;
+        .map_err(|err| ComponentError::AssetParse(format!("{resolved_path}: {err}")))?;
     let hash = hash_bytes(content.as_bytes());
     Ok((json, hash))
+}
+
+fn apply_root_locale_metadata(card: &mut Value, locale: &str, runtime_config: &RuntimeConfig) {
+    let Some(map) = card.as_object_mut() else {
+        return;
+    };
+    map.insert("lang".to_string(), Value::String(locale.to_string()));
+    map.insert(
+        "rtl".to_string(),
+        Value::Bool(runtime_config.effective_direction_rtl(locale)),
+    );
 }
 
 fn load_with_candidates(

@@ -26,7 +26,7 @@ EOF
 #EXPECT_EXIT 0
 #RUN cp ${REPO_ROOT}/target/wasm32-wasip2/release/component_adaptive_card.wasm ${WORK_DIR}/component_adaptive_card.wasm
 #EXPECT_EXIT 0
-#RUN greentic-dev flow add-step --flow ${FLOW} --node-id adaptive-card --operation card --payload '{"card_source":"asset","card_spec":{"asset_path":"card.json","template_params":{}},"mode":"renderAndValidate"}' --local-wasm ./component_adaptive_card.wasm --manifest ./component.manifest.json --after start
+#RUN greentic-dev flow add-step --flow ${FLOW} --node-id adaptive-card --operation card --payload '{"card_source":"asset","card_spec":{"asset_path":"card.json","template_params":{}},"mode":"renderAndValidate"}' --answers '{"default_source":"asset","default_card_asset":"card.json","multilingual":false}' --local-wasm ./component_adaptive_card.wasm --manifest ./component.manifest.json --after start
 #EXPECT_EXIT 0
 #SET RESOLVE=${FLOW}.resolve.json
 #WRITE ${RESOLVE} <<<EOF

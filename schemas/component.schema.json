@@ -4,16 +4,67 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "asset_base_path": {
+    "default_source": {
       "type": "string",
-      "description": "Optional base path for resolving catalog or asset-backed cards.",
-      "default": "assets",
-      "x-default-applied": true
+      "enum": ["inline", "asset", "catalog"],
+      "default": "inline",
+      "description": "How cards should be loaded by default when an invocation does not override the source."
     },
-    "catalog_registry_file": {
+    "default_card_inline": {
+      "type": ["object", "array", "null"],
+      "default": null,
+      "description": "Default Adaptive Card JSON used when default_source is inline."
+    },
+    "default_card_asset": {
+      "type": ["string", "null"],
+      "default": null,
+      "description": "Default card asset path or reference used when default_source is asset."
+    },
+    "catalog_registry_ref": {
+      "type": ["string", "null"],
+      "default": null,
+      "description": "Catalog registry reference used when resolving catalog_name entries. Examples: store://greentic-biz/_/adaptive-cards/default or repo://my-repo/cards/catalog.json."
+    },
+    "multilingual": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether localized rendering should use supported locales beyond English."
+    },
+    "language_mode": {
       "type": "string",
-      "description": "Optional path to a JSON map of catalog names to asset paths (fallback for env-based resolution).",
-      "x-optional": true
+      "enum": ["all", "custom"],
+      "default": "all",
+      "description": "Whether to allow every built-in locale or a custom subset."
+    },
+    "supported_locales": {
+      "type": ["array", "null"],
+      "default": null,
+      "items": {
+        "type": "string"
+      },
+      "description": "Custom locale allow-list used when language_mode is custom. English remains implicit fallback behavior."
+    },
+    "direction_mode": {
+      "type": "string",
+      "enum": ["ltr", "rtl", "auto"],
+      "default": "ltr",
+      "description": "How the Adaptive Card root rtl flag should be emitted."
+    },
+    "validation_mode": {
+      "type": "string",
+      "enum": ["off", "warn", "error"],
+      "default": "warn",
+      "description": "Default invocation schema validation behavior."
+    },
+    "trace_enabled": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether to emit adaptive-card trace telemetry by default."
+    },
+    "trace_capture_inputs": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether traces may include payload, session, state, and interaction inputs."
     }
   }
 }

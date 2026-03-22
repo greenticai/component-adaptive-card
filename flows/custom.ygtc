@@ -1,17 +1,72 @@
 id: ai.greentic.component-adaptive-card.custom
 kind: component-config
-description: Auto-generated custom config for ai.greentic.component-adaptive-card
+description: Setup config flow for ai.greentic.component-adaptive-card
 nodes:
   ask_config:
     questions:
       fields:
-      - id: asset_base_path
-        prompt: Optional base path for resolving catalog or asset-backed cards.
+      - id: default_source
+        prompt: How should cards be loaded by default?
+        type: enum
+        options: [inline, asset, catalog]
+        default: inline
+      - id: default_card_inline
+        prompt: Paste the default Adaptive Card JSON.
         type: string
-        default: assets
-      - id: catalog_registry_file
-        prompt: Optional path to a JSON map of catalog names to asset paths (fallback for env-based resolution).
+        show_if:
+          id: default_source
+          equals: inline
+      - id: default_card_asset
+        prompt: Enter the default card asset path/reference.
         type: string
+        show_if:
+          id: default_source
+          equals: asset
+      - id: catalog_registry_ref
+        prompt: Enter the card catalog reference. Examples: store://greentic-biz/_/adaptive-cards/default or repo://my-repo/cards/catalog.json
+        type: string
+        show_if:
+          id: default_source
+          equals: catalog
+      - id: multilingual
+        prompt: Do you want to support multiple languages?
+        type: boolean
+        default: true
+      - id: language_mode
+        prompt: Which languages do you want to support?
+        type: enum
+        options: [all, custom]
+        default: all
+        show_if:
+          id: multilingual
+          equals: true
+      - id: supported_locales
+        prompt: Enter locale codes, for example: en,en-GB,fr,de,nl
+        type: string
+        show_if:
+          id: language_mode
+          equals: custom
+      - id: direction_mode
+        prompt: Text direction
+        type: enum
+        options: [ltr, rtl, auto]
+        default: ltr
+      - id: validation_mode
+        prompt: Validation mode
+        type: enum
+        options: [off, warn, error]
+        default: warn
+      - id: trace_enabled
+        prompt: Enable tracing?
+        type: boolean
+        default: false
+      - id: trace_capture_inputs
+        prompt: Include inputs in traces?
+        type: boolean
+        default: false
+        show_if:
+          id: trace_enabled
+          equals: true
     routing:
     - to: emit_config
   emit_config:
@@ -21,8 +76,31 @@ nodes:
         "node": {
           "tool": {
             "component": "ai.greentic.component-adaptive-card",
-            "asset_base_path": "{{state.asset_base_path}}",
-            "catalog_registry_file": "{{state.catalog_registry_file}}"
+            "default_source": {{json state.default_source}},
+            {{#ifEq state.default_source "inline"}}
+            "default_card_inline": {{json state.default_card_inline}},
+            {{/ifEq}}
+            {{#ifEq state.default_source "asset"}}
+            "default_card_asset": {{json state.default_card_asset}},
+            {{/ifEq}}
+            {{#ifEq state.default_source "catalog"}}
+            "catalog_registry_ref": {{json state.catalog_registry_ref}},
+            {{/ifEq}}
+            "multilingual": {{json state.multilingual}},
+            {{#if state.multilingual}}
+            "language_mode": {{json state.language_mode}},
+            {{#ifEq state.language_mode "custom"}}
+            "supported_locales": {{json state.supported_locales}},
+            {{/ifEq}}
+            {{/if}}
+            "direction_mode": {{json state.direction_mode}},
+            "validation_mode": {{json state.validation_mode}},
+            "trace_enabled": {{json state.trace_enabled}},
+            {{#if state.trace_enabled}}
+            "trace_capture_inputs": {{json state.trace_capture_inputs}}
+            {{else}}
+            "trace_capture_inputs": false
+            {{/if}}
           },
           "routing": [
             { "to": "NEXT_NODE_PLACEHOLDER" },

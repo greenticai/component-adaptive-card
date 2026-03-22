@@ -3,17 +3,12 @@ use serde_json::{Map, Value};
 use crate::model::{AdaptiveCardInvocation, CardInteraction, TelemetryEvent};
 use crate::render::{AssetResolution, BindingSummary};
 
-pub fn trace_enabled() -> bool {
-    std::env::var("GREENTIC_TRACE_OUT").is_ok()
-        || std::env::var("GREENTIC_TRACE")
-            .map(|v| v == "1")
-            .unwrap_or(false)
-}
-
-pub fn trace_capture_inputs() -> bool {
-    std::env::var("GREENTIC_TRACE_CAPTURE_INPUTS")
-        .map(|v| v == "1")
-        .unwrap_or(false)
+pub struct TraceContext {
+    pub interaction: Option<CardInteraction>,
+    pub state_key: Option<String>,
+    pub state_read_hash: Option<String>,
+    pub state_write_hash: Option<String>,
+    pub capture_inputs: bool,
 }
 
 pub fn hash_value(value: &Value) -> Option<String> {
@@ -25,10 +20,7 @@ pub fn build_trace_event(
     invocation: &AdaptiveCardInvocation,
     asset_resolution: &AssetResolution,
     binding_summary: &BindingSummary,
-    interaction: Option<&CardInteraction>,
-    state_key: Option<String>,
-    state_read_hash: Option<String>,
-    state_write_hash: Option<String>,
+    trace_ctx: &TraceContext,
 ) -> TelemetryEvent {
     let mut properties = Map::new();
     properties.insert(
@@ -52,7 +44,7 @@ pub fn build_trace_event(
             "missing_paths": binding_summary.missing_paths
         }),
     );
-    if let Some(interaction) = interaction {
+    if let Some(interaction) = trace_ctx.interaction.as_ref() {
         properties.insert(
             "interaction_summary".to_string(),
             serde_json::json!({
@@ -66,20 +58,23 @@ pub fn build_trace_event(
     properties.insert(
         "state_summary".to_string(),
         serde_json::json!({
-            "state_key": state_key,
-            "state_read_hash": state_read_hash,
-            "state_write_hash": state_write_hash
+            "state_key": trace_ctx.state_key,
+            "state_read_hash": trace_ctx.state_read_hash,
+            "state_write_hash": trace_ctx.state_write_hash
         }),
     );
 
-    if trace_capture_inputs() {
+    if trace_ctx.capture_inputs {
         properties.insert(
             "inputs".to_string(),
             serde_json::json!({
                 "payload": invocation.payload,
                 "session": invocation.session,
                 "state": invocation.state,
-                "interaction_raw_inputs": interaction.map(|i| i.raw_inputs.clone())
+                "interaction_raw_inputs": trace_ctx
+                    .interaction
+                    .as_ref()
+                    .map(|interaction| interaction.raw_inputs.clone())
             }),
         );
     }
