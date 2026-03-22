@@ -62,5 +62,5 @@ jobs:
               "${RELEASE_CARD_PATH}" \
               --clobber
           }
-          publish_release "${VERSION_TAG}" "${COMPONENT_NAME} ${VERSION}"
-          publish_release "${LATEST_TAG}" "${COMPONENT_NAME} latest"
+          publish_release "${VERSION_TAG}" "${VERSION_RELEASE_TITLE}"
+          publish_release "${LATEST_TAG}" "${LATEST_RELEASE_TITLE}"
