@@ -8,14 +8,15 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: adaptive-card-nightly-chaos
+  cancel-in-progress: false
+
 jobs:
   nightly-chaos:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        seed: [101, 202]
     env:
+      CHAOS_SEEDS: "101 202"
       GREENTIC_FAIL_ASSET_TRANSIENT: "1/5"
       GREENTIC_FAIL_DELAY_STATE_READ_MS: "50"
       GREENTIC_FAIL_DUPLICATE_INTERACTION: "1"
@@ -68,18 +69,21 @@ jobs:
         run: |
           set -euo pipefail
           DATE=$(date -u +%Y-%m-%d)
-          SEED="${{ matrix.seed }}"
-          CORPUS_DIR="corpus/${DATE}/${SEED}"
-          mkdir -p "${CORPUS_DIR}"
-          echo "corpus_dir=${CORPUS_DIR}" >> "$GITHUB_OUTPUT"
-          echo "seed=${SEED}" >> "$GITHUB_OUTPUT"
-          echo "Replay: greentic-integration-tester run --gtest tests/gtests --artifacts-dir ${CORPUS_DIR} --seed ${SEED}" > "${CORPUS_DIR}/replay.txt"
-          greentic-integration-tester run --gtest tests/gtests/negative --artifacts-dir "${CORPUS_DIR}/negative" --seed "${SEED}"
-          greentic-integration-tester run --gtest tests/gtests/matrix/pairwise --artifacts-dir "${CORPUS_DIR}/matrix/pairwise" --seed "${SEED}"
-          greentic-integration-tester run --gtest tests/gtests/matrix/full --artifacts-dir "${CORPUS_DIR}/matrix/full" --seed "${SEED}"
+          CORPUS_ROOT="corpus/${DATE}"
+          mkdir -p "${CORPUS_ROOT}"
+          echo "corpus_root=${CORPUS_ROOT}" >> "$GITHUB_OUTPUT"
+
+          for SEED in ${CHAOS_SEEDS}; do
+            CORPUS_DIR="${CORPUS_ROOT}/${SEED}"
+            mkdir -p "${CORPUS_DIR}"
+            echo "Replay: greentic-integration-tester run --gtest tests/gtests --artifacts-dir ${CORPUS_DIR} --seed ${SEED}" > "${CORPUS_DIR}/replay.txt"
+            greentic-integration-tester run --gtest tests/gtests/negative --artifacts-dir "${CORPUS_DIR}/negative" --seed "${SEED}"
+            greentic-integration-tester run --gtest tests/gtests/matrix/pairwise --artifacts-dir "${CORPUS_DIR}/matrix/pairwise" --seed "${SEED}"
+            greentic-integration-tester run --gtest tests/gtests/matrix/full --artifacts-dir "${CORPUS_DIR}/matrix/full" --seed "${SEED}"
+          done
       - name: Upload failure corpus
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: adaptive-card-failure-corpus-${{ matrix.seed }}
-          path: ${{ steps.run-chaos.outputs.corpus_dir }}
+          name: adaptive-card-failure-corpus
+          path: ${{ steps.run-chaos.outputs.corpus_root }}
