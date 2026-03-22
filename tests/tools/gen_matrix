@@ -165,12 +165,12 @@ def write_gtest(path: Path, case_id: str, case_path: Path, expect: dict, env: di
     lines.append("#EXPECT_EXIT 0")
     lines.append("#CAPTURE_JSON > ${OUT}")
     if expect.get("pass"):
-        lines.append("#EXPECT_JSONPATH ${OUT} error not_exists")
+        lines.append("#EXPECT_JSONPATH ${OUT} result.error not_exists")
     else:
-        lines.append(f"#EXPECT_JSONPATH ${{OUT}} error.code equals {expect['error_code']}")
+        lines.append(f"#EXPECT_JSONPATH ${{OUT}} result.error.code equals {expect['error_code']}")
         for code in expect.get("issue_codes", []):
             lines.append(
-                f"#EXPECT_JSONPATH ${{OUT}} error.details.validation_issues[*].code contains {code}"
+                f"#EXPECT_JSONPATH ${{OUT}} result.error.details.validation_issues[*].code contains {code}"
             )
     lines.append("#SAVE_ARTIFACT ${OUT}")
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
