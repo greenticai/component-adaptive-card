@@ -572,10 +572,10 @@ fn qa_default_questions() -> Vec<Question> {
         "multilingual",
         true,
     ))));
-    questions.push(custom_locales_question(Some(skip_if_not_equals(
-        "language_mode",
-        "custom",
-    ))));
+    questions.push(custom_locales_question(Some(SkipExpression::Or(vec![
+        skip_if_not_equals("multilingual", true),
+        skip_if_not_equals("language_mode", "custom"),
+    ]))));
     questions
 }
 
@@ -767,9 +767,7 @@ fn custom_locales_question(skip_if: Option<SkipExpression>) -> Question {
         error: None,
         kind: QuestionKind::Text,
         required: true,
-        default: Some(ciborium::value::Value::Text(
-            "en,en-GB,fr,de,nl".to_string(),
-        )),
+        default: Some(ciborium::value::Value::Text("en,fr,de".to_string())),
         skip_if,
     }
 }
@@ -1828,6 +1826,16 @@ mod debug_tests {
         assert!(ids.contains(&"multilingual"));
         assert!(ids.contains(&"language_mode"));
         assert!(ids.contains(&"supported_locales"));
+        let supported_locales = questions
+            .iter()
+            .find(|question| question.id == "supported_locales")
+            .expect("supported_locales question");
+        match supported_locales.skip_if.as_ref() {
+            Some(SkipExpression::Or(parts)) => assert_eq!(parts.len(), 2),
+            other => {
+                panic!("expected supported_locales skip_if to be an Or expression, got {other:?}")
+            }
+        }
     }
 
     #[test]
@@ -1858,7 +1866,7 @@ mod debug_tests {
             "default_card_inline": "{\"type\":\"AdaptiveCard\",\"version\":\"1.6\",\"body\":[{\"type\":\"TextBlock\",\"text\":\"Hello\"}]}",
             "multilingual": true,
             "language_mode": "custom",
-            "supported_locales": "en,en-GB,fr,de,nl"
+            "supported_locales": "en,fr,de"
         }));
 
         let merged = qa_apply_answers_json("default", &encode_cbor(&json!({})), &answers);

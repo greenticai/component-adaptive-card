@@ -160,7 +160,7 @@
                 },
                 {
                   "id": "supported_locales",
-                  "prompt": "Enter locale codes, for example: en,en-GB,fr,de,nl",
+                  "prompt": "Enter a comma-separated list of locale codes, for example: en,fr,de",
                   "type": "string",
                   "show_if": { "id": "language_mode", "equals": "custom" }
                 },
@@ -256,7 +256,7 @@
                 },
                 {
                   "id": "supported_locales",
-                  "prompt": "Enter locale codes, for example: en,en-GB,fr,de,nl",
+                  "prompt": "Enter a comma-separated list of locale codes, for example: en,fr,de",
                   "type": "string",
                   "show_if": { "id": "language_mode", "equals": "custom" }
                 }

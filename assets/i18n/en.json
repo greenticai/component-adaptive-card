@@ -47,7 +47,7 @@
   "qa.question.language_mode.option.custom": "Choose a custom list",
   "qa.question.multilingual.help": "English remains the implicit baseline fallback even when you enable multiple languages.",
   "qa.question.multilingual.label": "Do you want to support multiple languages?",
-  "qa.question.supported_locales.help": "Enter comma-separated locale codes. Example: en,en-GB,fr,de,nl",
+  "qa.question.supported_locales.help": "Enter a comma-separated list of locale codes. Example: en,fr,de",
   "qa.question.supported_locales.label": "Enter the locale codes",
   "qa.question.trace_capture_inputs.help": "When enabled, traces may include payload, session, state, and interaction inputs.",
   "qa.question.trace_capture_inputs.label": "Include inputs in traces",
