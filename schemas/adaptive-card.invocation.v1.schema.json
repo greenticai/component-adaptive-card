@@ -2,6 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Adaptive Card invocation v1",
   "type": "object",
+  "required": ["card_spec"],
   "properties": {
     "card_source": {
       "type": "string",

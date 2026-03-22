@@ -598,6 +598,26 @@ fn config_defaults_supply_inline_card_at_runtime() {
 }
 
 #[test]
+fn schema_validation_reports_missing_card_spec() {
+    let input = serde_json::json!({
+        "card_source": "asset",
+        "validation_mode": "error"
+    });
+    let output = component_adaptive_card::handle_message("card", &input.to_string());
+    let parsed: serde_json::Value = serde_json::from_str(&output).expect("schema error payload");
+    let issues = parsed["error"]["details"]["validation_issues"]
+        .as_array()
+        .expect("validation issues array");
+
+    assert_eq!(parsed["error"]["code"], "AC_SCHEMA_INVALID");
+    assert!(
+        issues
+            .iter()
+            .any(|issue| issue["code"] == "AC_INVOCATION_MISSING_FIELD")
+    );
+}
+
+#[test]
 fn auto_direction_marks_arabic_locales_as_rtl() {
     let input = serde_json::json!({
         "config": {

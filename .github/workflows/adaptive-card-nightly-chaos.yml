@@ -74,8 +74,9 @@ jobs:
           echo "corpus_dir=${CORPUS_DIR}" >> "$GITHUB_OUTPUT"
           echo "seed=${SEED}" >> "$GITHUB_OUTPUT"
           echo "Replay: greentic-integration-tester run --gtest tests/gtests --artifacts-dir ${CORPUS_DIR} --seed ${SEED}" > "${CORPUS_DIR}/replay.txt"
-          greentic-integration-tester run --gtest tests/gtests/matrix --artifacts-dir "${CORPUS_DIR}/matrix" --seed "${SEED}"
           greentic-integration-tester run --gtest tests/gtests/negative --artifacts-dir "${CORPUS_DIR}/negative" --seed "${SEED}"
+          greentic-integration-tester run --gtest tests/gtests/matrix/pairwise --artifacts-dir "${CORPUS_DIR}/matrix/pairwise" --seed "${SEED}"
+          greentic-integration-tester run --gtest tests/gtests/matrix/full --artifacts-dir "${CORPUS_DIR}/matrix/full" --seed "${SEED}"
       - name: Upload failure corpus
         if: failure()
         uses: actions/upload-artifact@v4
