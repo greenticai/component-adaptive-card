@@ -9,7 +9,6 @@ if ! command -v greentic-integration-tester >/dev/null 2>&1; then
   exit 1
 fi
 
-SEED="${SEED:-101}"
 ARTIFACTS_ROOT="${ARTIFACTS_ROOT:-artifacts}"
 
 echo "Running PR gate gtests..."
@@ -20,11 +19,4 @@ greentic-integration-tester run --gtest tests/gtests/README --artifacts-dir "${A
 greentic-integration-tester run --gtest tests/gtests/matrix/pairwise --artifacts-dir "${ARTIFACTS_ROOT}/matrix" --errors
 greentic-integration-tester run --gtest tests/gtests/negative/smoke --artifacts-dir "${ARTIFACTS_ROOT}/negative" --errors
 
-echo "Running nightly chaos gtests..."
-./tests/tools/gen_matrix --mode full
-bash ./ci/check_matrix_gtests.sh
-mkdir -p "${ARTIFACTS_ROOT}/nightly/matrix" "${ARTIFACTS_ROOT}/nightly/negative"
-greentic-integration-tester run --gtest tests/gtests/matrix --artifacts-dir "${ARTIFACTS_ROOT}/nightly/matrix" --seed "${SEED}" --errors
-greentic-integration-tester run --gtest tests/gtests/negative --artifacts-dir "${ARTIFACTS_ROOT}/nightly/negative" --seed "${SEED}" --errors
-
-echo "All CI gtests passed."
+echo "PR gate gtests passed."
