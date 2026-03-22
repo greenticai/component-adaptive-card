@@ -62,7 +62,7 @@ jobs:
       - name: Generate matrix gtests
         run: ./tests/tools/gen_matrix --mode full
       - name: Check matrix gtest drift
-        run: ./ci/check_matrix_gtests.sh
+        run: bash ./ci/check_matrix_gtests.sh
       - name: Run nightly chaos suite
         id: run-chaos
         run: |

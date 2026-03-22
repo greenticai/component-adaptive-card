@@ -61,7 +61,7 @@ jobs:
       - name: Generate matrix pairwise gtests
         run: ./tests/tools/gen_matrix --mode pairwise
       - name: Check matrix gtest drift
-        run: ./ci/check_matrix_gtests.sh
+        run: bash ./ci/check_matrix_gtests.sh
       - name: Run Adaptive Card gtests
         run: |
           set -euo pipefail

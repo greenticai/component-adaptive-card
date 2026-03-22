@@ -14,7 +14,7 @@ ARTIFACTS_ROOT="${ARTIFACTS_ROOT:-artifacts}"
 
 echo "Running PR gate gtests..."
 ./tests/tools/gen_matrix --mode pairwise
-./ci/check_matrix_gtests.sh
+bash ./ci/check_matrix_gtests.sh
 mkdir -p "${ARTIFACTS_ROOT}/readme" "${ARTIFACTS_ROOT}/matrix" "${ARTIFACTS_ROOT}/negative"
 greentic-integration-tester run --gtest tests/gtests/README --artifacts-dir "${ARTIFACTS_ROOT}/readme" --errors
 greentic-integration-tester run --gtest tests/gtests/matrix/pairwise --artifacts-dir "${ARTIFACTS_ROOT}/matrix" --errors
@@ -22,7 +22,7 @@ greentic-integration-tester run --gtest tests/gtests/negative/smoke --artifacts-
 
 echo "Running nightly chaos gtests..."
 ./tests/tools/gen_matrix --mode full
-./ci/check_matrix_gtests.sh
+bash ./ci/check_matrix_gtests.sh
 mkdir -p "${ARTIFACTS_ROOT}/nightly/matrix" "${ARTIFACTS_ROOT}/nightly/negative"
 greentic-integration-tester run --gtest tests/gtests/matrix --artifacts-dir "${ARTIFACTS_ROOT}/nightly/matrix" --seed "${SEED}" --errors
 greentic-integration-tester run --gtest tests/gtests/negative --artifacts-dir "${ARTIFACTS_ROOT}/nightly/negative" --seed "${SEED}" --errors
