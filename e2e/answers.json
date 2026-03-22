@@ -1,0 +1,5 @@
+{
+  "default_source": "asset",
+  "default_card_asset": "e2e/adaptive-card.json",
+  "multilingual": false
+}

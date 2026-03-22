@@ -1,0 +1,37 @@
+{
+  "type": "AdaptiveCard",
+  "version": "1.6",
+  "body": [
+    {
+      "type": "TextBlock",
+      "text": "Adaptive Card E2E Fixture",
+      "weight": "Bolder",
+      "size": "Medium",
+      "wrap": true
+    },
+    {
+      "type": "TextBlock",
+      "text": "Hello @{payload.user.name||payload.name||\"Tester\"}",
+      "wrap": true
+    },
+    {
+      "type": "Input.Text",
+      "id": "comment",
+      "label": "Comment",
+      "placeholder": "Enter a value for follow-up steps"
+    },
+    {
+      "type": "TextBlock",
+      "text": "Saved comment: @{state.form_data.comment||\"(none)\"}",
+      "wrap": true,
+      "isSubtle": true
+    }
+  ],
+  "actions": [
+    {
+      "type": "Action.Submit",
+      "title": "Save",
+      "id": "save"
+    }
+  ]
+}

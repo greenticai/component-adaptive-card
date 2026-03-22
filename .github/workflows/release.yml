@@ -1,0 +1,66 @@
+name: Release
+
+on:
+  push:
+    branches: ["master"]
+
+permissions:
+  contents: write
+
+jobs:
+  github-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.91.0
+          targets: wasm32-wasip2
+      - name: Prefetch canonical WIT sources
+        run: ./ci/prefetch_canonical_wit.sh
+      - name: Build WASM (release)
+        run: cargo build --target wasm32-wasip2 --release
+      - name: Install blake3 for release manifest hashing
+        run: python -m pip install --user blake3
+      - name: Prepare GitHub release bundle
+        run: bash ./ci/prepare_github_release.sh release
+      - name: Export release metadata
+        run: cat release/release.env >> "$GITHUB_ENV"
+      - name: Ensure release tags point at this commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          ensure_tag() {
+            local tag="$1"
+            if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${tag}" >/dev/null 2>&1; then
+              gh api -X PATCH "repos/${GITHUB_REPOSITORY}/git/refs/tags/${tag}" -f sha="${GITHUB_SHA}" -F force=true >/dev/null
+            else
+              gh api -X POST "repos/${GITHUB_REPOSITORY}/git/refs" -f ref="refs/tags/${tag}" -f sha="${GITHUB_SHA}" >/dev/null
+            fi
+          }
+          ensure_tag "${VERSION_TAG}"
+          ensure_tag "${LATEST_TAG}"
+      - name: Create or update GitHub releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          publish_release() {
+            local tag="$1"
+            local title="$2"
+            if gh release view "${tag}" >/dev/null 2>&1; then
+              gh release edit "${tag}" --title "${title}" --notes-file "${RELEASE_NOTES_PATH}"
+            else
+              gh release create "${tag}" --title "${title}" --notes-file "${RELEASE_NOTES_PATH}" --target "${GITHUB_SHA}"
+            fi
+            gh release upload "${tag}" \
+              "${RELEASE_ARCHIVE_PATH}" \
+              "${RELEASE_MANIFEST_PATH}" \
+              "${RELEASE_WASM_PATH}" \
+              "${RELEASE_ANSWERS_PATH}" \
+              "${RELEASE_CARD_PATH}" \
+              --clobber
+          }
+          publish_release "${VERSION_TAG}" "${COMPONENT_NAME} ${VERSION}"
+          publish_release "${LATEST_TAG}" "${COMPONENT_NAME} latest"

@@ -145,6 +145,21 @@ Build a gtpack and run via the runner CLI to verify end-to-end packaging and exe
 ci/component_pack_smoke.sh
 ```
 
+### Reusable wizard fixture
+
+The repo now includes an `e2e/` fixture directory for wizard-driven setup:
+
+- `e2e/answers.json` targets the default component config flow and chooses an asset-backed default card.
+- `e2e/adaptive-card.json` is a reusable card with payload binding, submit interaction, and state readback so it can participate in richer multi-step e2e scenarios.
+
+Example:
+
+```bash
+gtc wizard --answers e2e/answers.json
+```
+
+Using that answers file should add the component to the current first flow with `default_card_asset` set to `e2e/adaptive-card.json`.
+
 ## Compatibility notes
 
 - Preferred per-call locale field: `locale`
