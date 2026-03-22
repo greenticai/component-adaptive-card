@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  packages: write
 
 jobs:
   rust:
@@ -31,6 +32,54 @@ jobs:
         run: cargo build --target wasm32-wasip2 --release
       - name: Check host state capability wiring
         run: ./ci/check_host_state_capability.sh
+      - name: Prepare publish artifacts
+        if: github.ref == 'refs/heads/master'
+        run: |
+          WASM_PATH=$(jq -r '.artifacts.component_wasm' component.manifest.json)
+          WASM_BASENAME=$(basename "$WASM_PATH")
+          cp "$WASM_PATH" "$WASM_BASENAME"
+          cp component.manifest.json component.publish.manifest.json
+          jq --arg wasm "$WASM_BASENAME" '.artifacts.component_wasm = $wasm' component.publish.manifest.json > component.publish.tmp && mv component.publish.tmp component.publish.manifest.json
+          python -m pip install --user blake3
+          WASM_BASENAME="$WASM_BASENAME" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import blake3
+
+          manifest = Path("component.publish.manifest.json")
+          wasm_path = Path(os.environ["WASM_BASENAME"])
+
+          data = json.loads(manifest.read_text())
+          digest = blake3.blake3(wasm_path.read_bytes()).hexdigest()
+          data["hashes"]["component_wasm"] = f"blake3:{digest}"
+          manifest.write_text(json.dumps(data, indent=2))
+          PY
+          ls -l "$WASM_BASENAME" component.publish.manifest.json
+      - name: Install ORAS
+        if: github.ref == 'refs/heads/master'
+        uses: oras-project/setup-oras@v1
+      - name: Login to GHCR
+        if: github.ref == 'refs/heads/master'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "${GITHUB_TOKEN}" | oras login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
+      - name: Push OCI artifact to GHCR
+        if: github.ref == 'refs/heads/master'
+        run: |
+          VERSION=$(cargo metadata --format-version 1 --no-deps | jq -r '.packages[0].version')
+          COMPONENT_NAME=$(jq -r '.name' component.manifest.json)
+          WASM_PATH=$(jq -r '.artifacts.component_wasm' component.manifest.json)
+          WASM_BASENAME=$(basename "$WASM_PATH")
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER}/components/${COMPONENT_NAME}"
+          oras push "${IMAGE}:latest" \
+            --annotation org.opencontainers.image.source="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
+            component.publish.manifest.json:application/vnd.greentic.component.manifest+json \
+            "${WASM_BASENAME}":application/wasm
+          oras push "${IMAGE}:${VERSION}" \
+            --annotation org.opencontainers.image.source="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
+            component.publish.manifest.json:application/vnd.greentic.component.manifest+json \
+            "${WASM_BASENAME}":application/wasm
   readme-gtests:
     runs-on: ubuntu-latest
     steps:
