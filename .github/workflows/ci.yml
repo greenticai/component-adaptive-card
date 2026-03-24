@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: ["main", "master"]
+    branches: ["main"]
   pull_request:
 
 permissions:
@@ -33,7 +33,7 @@ jobs:
       - name: Check host state capability wiring
         run: ./ci/check_host_state_capability.sh
       - name: Prepare publish artifacts
-        if: github.ref == 'refs/heads/master'
+        if: github.ref == 'refs/heads/main'
         run: |
           WASM_PATH=$(jq -r '.artifacts.component_wasm' component.manifest.json)
           WASM_BASENAME=$(basename "$WASM_PATH")
@@ -57,15 +57,15 @@ jobs:
           PY
           ls -l "$WASM_BASENAME" component.publish.manifest.json
       - name: Install ORAS
-        if: github.ref == 'refs/heads/master'
+        if: github.ref == 'refs/heads/main'
         uses: oras-project/setup-oras@v1
       - name: Login to GHCR
-        if: github.ref == 'refs/heads/master'
+        if: github.ref == 'refs/heads/main'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: echo "${GITHUB_TOKEN}" | oras login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
       - name: Push OCI artifact to GHCR
-        if: github.ref == 'refs/heads/master'
+        if: github.ref == 'refs/heads/main'
         run: |
           VERSION=$(cargo metadata --format-version 1 --no-deps | jq -r '.packages[0].version')
           COMPONENT_NAME=$(jq -r '.name' component.manifest.json)
