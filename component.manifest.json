@@ -295,7 +295,17 @@
         "properties": {
           "envelope": {
             "description": "Optional Greentic invocation envelope metadata.",
-            "type": "object"
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "ctx": { "type": "object", "additionalProperties": true },
+              "flow_id": { "type": "string" },
+              "step_id": { "type": "string" },
+              "component_id": { "type": "string" },
+              "attempt": { "type": "integer" },
+              "payload_cbor": { "type": "array", "items": { "type": "integer" } },
+              "metadata_cbor": { "type": ["array", "null"], "items": { "type": "integer" } }
+            }
           },
           "card_source": {
             "type": "string",
@@ -308,7 +318,9 @@
             "description": "Per-call details for resolving the card source. When omitted, component config defaults may supply the card source details.",
             "properties": {
               "inline_json": {
-                "type": ["object", "array"]
+                "description": "Inline Adaptive Card JSON object or array.",
+                "type": ["object", "array"],
+                "additionalProperties": true
               },
               "asset_path": {
                 "type": "string"
@@ -318,7 +330,9 @@
                 "description": "Catalog entry name to resolve through the configured catalog registry."
               },
               "template_params": {
-                "type": ["object", "array"]
+                "description": "Template parameters for card rendering.",
+                "type": ["object", "array"],
+                "additionalProperties": true
               },
               "asset_registry": {
                 "type": "object",
@@ -342,16 +356,19 @@
             "description": "Deprecated alias for locale retained for compatibility."
           },
           "payload": {
+            "description": "Explicit input payload used for binding and expression resolution.",
             "type": ["object", "array", "null"],
-            "description": "Explicit input payload used for binding and expression resolution."
+            "additionalProperties": true
           },
           "session": {
+            "description": "Optional explicit session metadata.",
             "type": ["object", "array", "null"],
-            "description": "Optional explicit session metadata."
+            "additionalProperties": true
           },
           "state": {
+            "description": "Optional explicit state override. Persistent state still uses the Greentic state store.",
             "type": ["object", "array", "null"],
-            "description": "Optional explicit state override. Persistent state still uses the Greentic state store."
+            "additionalProperties": true
           },
           "interaction": {
             "type": "object",
@@ -371,13 +388,17 @@
                 "type": ["string", "null"]
               },
               "raw_inputs": {
-                "type": ["object", "array", "string", "null"]
+                "description": "Raw user inputs from the card interaction.",
+                "type": ["object", "array", "string", "null"],
+                "additionalProperties": true
               },
               "card_instance_id": {
                 "type": "string"
               },
               "metadata": {
-                "type": ["object", "array", "null"]
+                "description": "Additional interaction metadata.",
+                "type": ["object", "array", "null"],
+                "additionalProperties": true
               }
             }
           },
@@ -400,15 +421,54 @@
         "title": "Adaptive Card result output",
         "type": "object",
         "properties": {
-          "rendered_card": { "type": ["object", "array", "null"] },
-          "event": { "type": ["object", "null"] },
+          "rendered_card": {
+            "description": "The rendered Adaptive Card JSON.",
+            "type": ["object", "array", "null"],
+            "additionalProperties": true
+          },
+          "event": {
+            "description": "Action event produced by user interaction.",
+            "type": ["object", "null"],
+            "properties": {
+              "action_type": { "type": "string", "enum": ["Submit", "Execute", "OpenUrl", "ShowCard", "ToggleVisibility"] },
+              "action_id": { "type": "string" },
+              "verb": { "type": ["string", "null"] },
+              "route": { "type": ["string", "null"] },
+              "inputs": { "type": ["object", "array", "null"], "additionalProperties": true },
+              "card_id": { "type": "string" },
+              "card_instance_id": { "type": "string" },
+              "subcard_id": { "type": ["string", "null"] },
+              "metadata": { "type": ["object", "array", "null"], "additionalProperties": true }
+            },
+            "additionalProperties": true
+          },
           "state_updates": {
             "type": "array",
-            "items": { "type": "object" }
+            "items": {
+              "type": "object",
+              "additionalProperties": true,
+              "description": "State update operation (Set, Merge, or Delete).",
+              "properties": {
+                "Set": { "type": "object", "properties": { "path": { "type": "string" }, "value": {} }, "additionalProperties": false },
+                "Merge": { "type": "object", "properties": { "path": { "type": "string" }, "value": {} }, "additionalProperties": false },
+                "Delete": { "type": "object", "properties": { "path": { "type": "string" } }, "additionalProperties": false }
+              }
+            }
           },
           "session_updates": {
             "type": "array",
-            "items": { "type": "object" }
+            "items": {
+              "type": "object",
+              "additionalProperties": true,
+              "description": "Session update operation (SetRoute, SetAttribute, DeleteAttribute, PushCardStack, PopCardStack).",
+              "properties": {
+                "SetRoute": { "type": "object", "properties": { "route": { "type": "string" } }, "additionalProperties": false },
+                "SetAttribute": { "type": "object", "properties": { "key": { "type": "string" }, "value": {} }, "additionalProperties": false },
+                "DeleteAttribute": { "type": "object", "properties": { "key": { "type": "string" } }, "additionalProperties": false },
+                "PushCardStack": { "type": "object", "properties": { "card_id": { "type": "string" } }, "additionalProperties": false },
+                "PopCardStack": { "type": "object", "additionalProperties": false }
+              }
+            }
           },
           "card_features": {
             "type": "object",
@@ -420,16 +480,38 @@
               "uses_toggle_visibility": { "type": "boolean" },
               "uses_media": { "type": "boolean" },
               "uses_auth": { "type": "boolean" },
-              "requires_features": { "type": ["object", "array", "null"] }
+              "requires_features": {
+                "description": "Additional feature requirements.",
+                "type": ["object", "array", "null"],
+                "additionalProperties": true
+              }
             }
           },
           "validation_issues": {
             "type": "array",
-            "items": { "type": "object" }
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": { "type": "string" },
+                "msg_key": { "type": ["string", "null"] },
+                "message": { "type": "string" },
+                "path": { "type": "string" }
+              },
+              "required": ["code", "message", "path"],
+              "additionalProperties": false
+            }
           },
           "telemetry_events": {
             "type": "array",
-            "items": { "type": "object" }
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string" },
+                "properties": { "type": ["object", "null"], "additionalProperties": true }
+              },
+              "required": ["name"],
+              "additionalProperties": false
+            }
           }
         }
       }
@@ -440,6 +522,6 @@
     "supported": ["stateless"]
   },
   "supports": ["messaging"],
-  "version": "0.1.20",
+  "version": "0.1.25",
   "world": "greentic:component/component-v0-v6-v0@0.6.0"
 }
