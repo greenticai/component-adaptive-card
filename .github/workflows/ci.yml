@@ -93,27 +93,36 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: |
-            ~/.cargo/bin
             ~/.cargo/registry
             ~/.cargo/git
-          key: ${{ runner.os }}-cargo-bins-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-bins-
+            ${{ runner.os }}-cargo-registry-
       - name: Install cargo-binstall
         uses: taiki-e/install-action@cargo-binstall
-      - name: Install Greentic CLIs
+      - name: Ensure cargo bin path is on PATH
+        run: echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+      - name: Install Greentic CLIs and wasm-tools
         run: |
           cargo binstall -y greentic-dev greentic-flow greentic-integration-tester
           cargo binstall -y greentic-component --force
+          cargo binstall -y wasm-tools --force
+      - name: Verify installed CLIs
+        run: |
+          echo "PATH=$PATH"
+          ls -la "$HOME/.cargo/bin" || true
+          command -v greentic-integration-tester
+          command -v greentic-component
+          command -v wasm-tools
+          wasm-tools --version
       - name: Save cargo binaries cache
         if: always()
         uses: actions/cache/save@v4
         with:
           path: |
-            ~/.cargo/bin
             ~/.cargo/registry
             ~/.cargo/git
-          key: ${{ runner.os }}-cargo-bins-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
       - name: Build WASM (release)
         run: cargo build --target wasm32-wasip2 --release
       - name: Check host state capability wiring
