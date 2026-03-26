@@ -1,39 +1,40 @@
 name: CI
-
 on:
+  workflow_call:
   push:
-    branches: ["main"]
+    branches: [main]
   pull_request:
 
 permissions:
   contents: read
-  packages: write
 
 jobs:
-  rust:
+  ci:
+    uses: greenticai/.github/.github/workflows/wasm-component-ci.yml@main
+    with:
+      setup-script: "./ci/prefetch_canonical_wit.sh"
+
+  publish:
+    if: github.ref == 'refs/heads/main'
+    needs: [ci]
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.91.0
           targets: wasm32-wasip2
+      - uses: Swatinem/rust-cache@v2
       - name: Prefetch canonical WIT sources
         run: ./ci/prefetch_canonical_wit.sh
-      - name: Cargo fmt
-        run: cargo fmt --all -- --check
-      - name: Cargo clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
-      - name: Cargo test
-        run: cargo test --workspace --all-targets
-      - name: Cargo check (wasm32-wasip2)
-        run: cargo check --target wasm32-wasip2
       - name: Build WASM (release)
         run: cargo build --target wasm32-wasip2 --release
       - name: Check host state capability wiring
         run: ./ci/check_host_state_capability.sh
       - name: Prepare publish artifacts
-        if: github.ref == 'refs/heads/main'
         run: |
           WASM_PATH=$(jq -r '.artifacts.component_wasm' component.manifest.json)
           WASM_BASENAME=$(basename "$WASM_PATH")
@@ -57,15 +58,12 @@ jobs:
           PY
           ls -l "$WASM_BASENAME" component.publish.manifest.json
       - name: Install ORAS
-        if: github.ref == 'refs/heads/main'
         uses: oras-project/setup-oras@v1
       - name: Login to GHCR
-        if: github.ref == 'refs/heads/main'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: echo "${GITHUB_TOKEN}" | oras login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
       - name: Push OCI artifact to GHCR
-        if: github.ref == 'refs/heads/main'
         run: |
           VERSION=$(cargo metadata --format-version 1 --no-deps | jq -r '.packages[0].version')
           COMPONENT_NAME=$(jq -r '.name' component.manifest.json)
@@ -80,6 +78,7 @@ jobs:
             --annotation org.opencontainers.image.source="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
             component.publish.manifest.json:application/vnd.greentic.component.manifest+json \
             "${WASM_BASENAME}":application/wasm
+
   readme-gtests:
     runs-on: ubuntu-latest
     steps:
