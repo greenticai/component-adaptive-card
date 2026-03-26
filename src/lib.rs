@@ -199,19 +199,19 @@ impl component_i18n::Guest for Component {
         vec![
             "qa.default.title".to_string(),
             "qa.default.description".to_string(),
-            "qa.question.catalog_registry_ref.help".to_string(),
-            "qa.question.catalog_registry_ref.label".to_string(),
             "qa.question.confirm_remove.help".to_string(),
             "qa.question.confirm_remove.label".to_string(),
             "qa.question.card_source.label".to_string(),
             "qa.question.card_source.help".to_string(),
             "qa.question.card_source.option.asset".to_string(),
             "qa.question.card_source.option.inline".to_string(),
-            "qa.question.card_source.option.catalog".to_string(),
+            "qa.question.card_source.option.remote".to_string(),
             "qa.question.default_card_asset.help".to_string(),
             "qa.question.default_card_asset.label".to_string(),
             "qa.question.default_card_inline.help".to_string(),
             "qa.question.default_card_inline.label".to_string(),
+            "qa.question.default_card_remote.help".to_string(),
+            "qa.question.default_card_remote.label".to_string(),
             "qa.question.direction_mode.help".to_string(),
             "qa.question.direction_mode.label".to_string(),
             "qa.question.direction_mode.option.auto".to_string(),
@@ -603,8 +603,8 @@ fn qa_update_questions() -> Vec<Question> {
         "asset",
         "card_source",
     ))));
-    questions.push(catalog_ref_question(Some(skip_if_not_card_source(
-        "catalog",
+    questions.push(remote_card_question(Some(skip_if_not_card_source(
+        "remote",
         "card_source",
     ))));
 
@@ -658,7 +658,7 @@ fn source_questions() -> Vec<Question> {
         source_choice_question(None),
         inline_card_question(Some(skip_if_not_equals("card_source", "inline"))),
         asset_card_question(Some(skip_if_not_equals("card_source", "asset"))),
-        catalog_ref_question(Some(skip_if_not_equals("card_source", "catalog"))),
+        remote_card_question(Some(skip_if_not_equals("card_source", "remote"))),
     ]
 }
 
@@ -672,7 +672,7 @@ fn source_choice_question(skip_if: Option<SkipExpression>) -> Question {
             options: vec![
                 choice("inline", "qa.question.card_source.option.inline"),
                 choice("asset", "qa.question.card_source.option.asset"),
-                choice("catalog", "qa.question.card_source.option.catalog"),
+                choice("remote", "qa.question.card_source.option.remote"),
             ],
         },
         required: true,
@@ -704,6 +704,7 @@ fn asset_card_question(skip_if: Option<SkipExpression>) -> Question {
             file_types: vec!["json".to_string()],
             base_path: Some("assets".to_string()),
             check_exists: false,
+            allow_remote: false,
         },
         required: true,
         default: None,
@@ -711,13 +712,18 @@ fn asset_card_question(skip_if: Option<SkipExpression>) -> Question {
     }
 }
 
-fn catalog_ref_question(skip_if: Option<SkipExpression>) -> Question {
+fn remote_card_question(skip_if: Option<SkipExpression>) -> Question {
     Question {
-        id: "catalog_registry_ref".to_string(),
-        label: i18n_text("qa.question.catalog_registry_ref.label"),
-        help: Some(i18n_text("qa.question.catalog_registry_ref.help")),
+        id: "default_card_remote".to_string(),
+        label: i18n_text("qa.question.default_card_remote.label"),
+        help: Some(i18n_text("qa.question.default_card_remote.help")),
         error: None,
-        kind: QuestionKind::Text,
+        kind: QuestionKind::AssetRef {
+            file_types: vec!["json".to_string()],
+            base_path: Some("assets/cards".to_string()),
+            check_exists: false,
+            allow_remote: true,
+        },
         required: true,
         default: None,
         skip_if,
@@ -963,17 +969,21 @@ fn apply_source_answers(
                 .entry("catalog_registry_ref".to_string())
                 .or_insert(serde_json::Value::Null);
         }
-        "catalog" => {
-            let reference = string_answer(answers, "catalog_registry_ref")
-                .or_else(|| string_value_json(merged.get("catalog_registry_ref")));
+        "remote" => {
+            let asset = string_answer(answers, "default_card_remote")
+                .or_else(|| string_value_json(merged.get("default_card_asset")));
             merged.insert(
-                "catalog_registry_ref".to_string(),
-                reference
+                "default_source".to_string(),
+                serde_json::Value::String("asset".to_string()),
+            );
+            merged.insert(
+                "default_card_asset".to_string(),
+                asset
                     .map(serde_json::Value::String)
                     .unwrap_or(serde_json::Value::Null),
             );
+            merged.insert("catalog_registry_ref".to_string(), serde_json::Value::Null);
             merged.insert("default_card_inline".to_string(), serde_json::Value::Null);
-            merged.insert("default_card_asset".to_string(), serde_json::Value::Null);
         }
         _ => {}
     }
@@ -1822,7 +1832,7 @@ mod debug_tests {
         assert!(ids.contains(&"card_source"));
         assert!(ids.contains(&"default_card_inline"));
         assert!(ids.contains(&"default_card_asset"));
-        assert!(ids.contains(&"catalog_registry_ref"));
+        assert!(ids.contains(&"default_card_remote"));
         assert!(ids.contains(&"multilingual"));
         assert!(ids.contains(&"language_mode"));
         assert!(ids.contains(&"supported_locales"));
@@ -1846,7 +1856,7 @@ mod debug_tests {
     }
 
     #[test]
-    fn qa_card_source_choices_cover_inline_asset_catalog() {
+    fn qa_card_source_choices_cover_inline_asset_remote() {
         let questions = qa_card_questions_for_mode("default");
         let source = questions
             .iter()
@@ -1856,7 +1866,7 @@ mod debug_tests {
             panic!("card_source must be a choice question");
         };
         let values: Vec<&str> = options.iter().map(|option| option.value.as_str()).collect();
-        assert_eq!(values, vec!["inline", "asset", "catalog"]);
+        assert_eq!(values, vec!["inline", "asset", "remote"]);
     }
 
     #[test]
@@ -1877,22 +1887,34 @@ mod debug_tests {
     }
 
     #[test]
-    fn qa_apply_answers_builds_catalog_config_from_registry_ref() {
+    fn qa_apply_answers_builds_asset_config_from_remote_import_path() {
         let answers = encode_cbor(&json!({
-            "card_source": "catalog",
-            "catalog_registry_ref": "repo://my-repo/cards/catalog.json",
+            "card_source": "remote",
+            "default_card_remote": "assets/cards/imported-card.json",
             "multilingual": true,
             "language_mode": "all"
         }));
 
         let merged = qa_apply_answers_json("default", &encode_cbor(&json!({})), &answers);
-        assert_eq!(merged["default_source"], "catalog");
+        assert_eq!(merged["default_source"], "asset");
         assert_eq!(
-            merged["catalog_registry_ref"],
-            "repo://my-repo/cards/catalog.json"
+            merged["default_card_asset"],
+            "assets/cards/imported-card.json"
         );
+        assert_eq!(merged["catalog_registry_ref"], serde_json::Value::Null);
         assert_eq!(merged["default_card_inline"], serde_json::Value::Null);
-        assert_eq!(merged["default_card_asset"], serde_json::Value::Null);
+    }
+
+    #[test]
+    fn remote_card_question_allows_remote_asset_refs() {
+        let question = qa_card_questions_for_mode("default")
+            .into_iter()
+            .find(|question| question.id == "default_card_remote")
+            .expect("default_card_remote question");
+        let QuestionKind::AssetRef { allow_remote, .. } = question.kind else {
+            panic!("default_card_remote must be an asset ref question");
+        };
+        assert!(allow_remote);
     }
 
     #[test]

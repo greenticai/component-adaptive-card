@@ -8,7 +8,7 @@ nodes:
       - id: default_source
         prompt: How should cards be loaded by default?
         type: enum
-        options: [inline, asset, catalog]
+        options: [inline, asset, remote]
         default: inline
       - id: default_card_inline
         prompt: Paste the default Adaptive Card JSON.
@@ -22,12 +22,12 @@ nodes:
         show_if:
           id: default_source
           equals: asset
-      - id: catalog_registry_ref
-        prompt: Enter the card catalog reference. Examples: store://greentic-biz/_/adaptive-cards/default or repo://my-repo/cards/catalog.json
+      - id: default_card_remote
+        prompt: Enter the remote card reference to import. Examples: https://example.com/cards/welcome.json, oci://registry/cards/welcome, store://greentic-biz/_/adaptive-cards/default, or repo://my-repo/cards/welcome.json
         type: string
         show_if:
           id: default_source
-          equals: catalog
+          equals: remote
       - id: multilingual
         prompt: Do you want to support multiple languages?
         type: boolean
@@ -76,16 +76,17 @@ nodes:
         "node": {
           "tool": {
             "component": "ai.greentic.component-adaptive-card",
-            "default_source": {{json state.default_source}},
+            "default_source": {{#ifEq state.default_source "remote"}}"asset"{{else}}{{json state.default_source}}{{/ifEq}},
             {{#ifEq state.default_source "inline"}}
             "default_card_inline": {{json state.default_card_inline}},
             {{/ifEq}}
             {{#ifEq state.default_source "asset"}}
             "default_card_asset": {{json state.default_card_asset}},
             {{/ifEq}}
-            {{#ifEq state.default_source "catalog"}}
-            "catalog_registry_ref": {{json state.catalog_registry_ref}},
+            {{#ifEq state.default_source "remote"}}
+            "default_card_asset": {{json state.default_card_remote}},
             {{/ifEq}}
+            "catalog_registry_ref": null,
             "multilingual": {{json state.multilingual}},
             {{#if state.multilingual}}
             "language_mode": {{json state.language_mode}},
