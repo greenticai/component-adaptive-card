@@ -13,7 +13,6 @@ The component now uses a single canonical component-config surface for install/s
 - `default_source`
 - `default_card_inline`
 - `default_card_asset`
-- `catalog_registry_ref`
 - `multilingual`
 - `language_mode`
 - `supported_locales`
@@ -56,14 +55,21 @@ English (`en`) is always the implicit baseline and fallback locale.
 
 At render time the component injects Adaptive Card root `lang` and `rtl`.
 
-## Catalog registry refs
+## Remote Cards In Setup
 
-Use `catalog_registry_ref` for distributable catalog sources, for example:
+The setup/update QA flow now offers a `Remote card` choice alongside `Inline JSON` and `Asset file`.
+That remote question is an asset ref with host-assisted remote resolution enabled, so Greentic Flow can accept refs such as:
 
+- `https://example.com/cards/welcome.json`
+- `oci://registry.example.com/cards/welcome`
 - `store://greentic-biz/_/adaptive-cards/default`
-- `repo://my-repo/cards/catalog.json`
+- `repo://my-repo/cards/welcome.json`
 
-What is implemented today:
+When `Remote card` is selected, the host/orchestrator is expected to import the card into the pack and return the local `assets/cards/*.json` path through `apply_answers`. This component then stores that local path as `default_card_asset` with `default_source = "asset"`.
+
+Catalog-style runtime resolution remains available for direct invocation payloads and backwards-compatible configs.
+
+What is implemented today at runtime:
 
 - `repo://...` refs are resolved as local repo-relative paths in native/local execution
 - `store://...` refs require host/distributor resolution and can be satisfied through the existing host asset resolver hook
@@ -194,9 +200,8 @@ greentic-dev flow add-step \
 ```
 
 Config mode now drives the canonical component config:
-- selecting default source (`inline`, `asset`, `catalog`)
-- default inline card or asset path
-- catalog registry refs such as `store://greentic-biz/_/adaptive-cards/default`
+- selecting default source (`inline`, `asset`, `remote`)
+- default inline card, local asset path, or remote card import ref
 - multilingual support
 - custom locales such as `en,en-GB,fr,de,nl`
 - text direction (`ltr`, `rtl`, `auto`)

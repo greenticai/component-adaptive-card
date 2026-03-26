@@ -123,7 +123,7 @@
                   "id": "default_source",
                   "prompt": "How should cards be loaded by default?",
                   "type": "enum",
-                  "options": ["inline", "asset", "catalog"],
+                  "options": ["inline", "asset", "remote"],
                   "default": "inline"
                 },
                 {
@@ -139,10 +139,10 @@
                   "show_if": { "id": "default_source", "equals": "asset" }
                 },
                 {
-                  "id": "catalog_registry_ref",
-                  "prompt": "Enter the card catalog reference. Examples: store://greentic-biz/_/adaptive-cards/default or repo://my-repo/cards/catalog.json",
+                  "id": "default_card_remote",
+                  "prompt": "Enter the remote card reference to import. Examples: https://example.com/cards/welcome.json, oci://registry/cards/welcome, store://greentic-biz/_/adaptive-cards/default, or repo://my-repo/cards/welcome.json",
                   "type": "string",
-                  "show_if": { "id": "default_source", "equals": "catalog" }
+                  "show_if": { "id": "default_source", "equals": "remote" }
                 },
                 {
                   "id": "multilingual",
@@ -200,7 +200,7 @@
             ]
           },
           "emit_config": {
-            "template": "{\n  \"node_id\": \"component-adaptive-card\",\n  \"node\": {\n    \"tool\": {\n      \"component\": \"ai.greentic.component-adaptive-card\",\n      \"default_source\": {{json state.default_source}},\n      {{#ifEq state.default_source \"inline\"}}\n      \"default_card_inline\": {{json state.default_card_inline}},\n      {{/ifEq}}\n      {{#ifEq state.default_source \"asset\"}}\n      \"default_card_asset\": {{json state.default_card_asset}},\n      {{/ifEq}}\n      {{#ifEq state.default_source \"catalog\"}}\n      \"catalog_registry_ref\": {{json state.catalog_registry_ref}},\n      {{/ifEq}}\n      \"multilingual\": {{json state.multilingual}},\n      {{#if state.multilingual}}\n      \"language_mode\": {{json state.language_mode}},\n      {{#ifEq state.language_mode \"custom\"}}\n      \"supported_locales\": {{json state.supported_locales}},\n      {{/ifEq}}\n      {{/if}}\n      \"direction_mode\": {{json state.direction_mode}},\n      \"validation_mode\": {{json state.validation_mode}},\n      \"trace_enabled\": {{json state.trace_enabled}},\n      {{#if state.trace_enabled}}\n      \"trace_capture_inputs\": {{json state.trace_capture_inputs}}\n      {{else}}\n      \"trace_capture_inputs\": false\n      {{/if}}\n    },\n    \"routing\": [\n      { \"to\": \"NEXT_NODE_PLACEHOLDER\" },\n      { \"out\": true }\n    ]\n  }\n}"
+            "template": "{\n  \"node_id\": \"component-adaptive-card\",\n  \"node\": {\n    \"tool\": {\n      \"component\": \"ai.greentic.component-adaptive-card\",\n      \"default_source\": {{#ifEq state.default_source \"remote\"}}\"asset\"{{else}}{{json state.default_source}}{{/ifEq}},\n      {{#ifEq state.default_source \"inline\"}}\n      \"default_card_inline\": {{json state.default_card_inline}},\n      {{/ifEq}}\n      {{#ifEq state.default_source \"asset\"}}\n      \"default_card_asset\": {{json state.default_card_asset}},\n      {{/ifEq}}\n      {{#ifEq state.default_source \"remote\"}}\n      \"default_card_asset\": {{json state.default_card_remote}},\n      {{/ifEq}}\n      \"catalog_registry_ref\": null,\n      \"multilingual\": {{json state.multilingual}},\n      {{#if state.multilingual}}\n      \"language_mode\": {{json state.language_mode}},\n      {{#ifEq state.language_mode \"custom\"}}\n      \"supported_locales\": {{json state.supported_locales}},\n      {{/ifEq}}\n      {{/if}}\n      \"direction_mode\": {{json state.direction_mode}},\n      \"validation_mode\": {{json state.validation_mode}},\n      \"trace_enabled\": {{json state.trace_enabled}},\n      {{#if state.trace_enabled}}\n      \"trace_capture_inputs\": {{json state.trace_capture_inputs}}\n      {{else}}\n      \"trace_capture_inputs\": false\n      {{/if}}\n    },\n    \"routing\": [\n      { \"to\": \"NEXT_NODE_PLACEHOLDER\" },\n      { \"out\": true }\n    ]\n  }\n}"
           }
         }
       }
@@ -219,7 +219,7 @@
                   "id": "default_source",
                   "prompt": "How should cards be loaded by default?",
                   "type": "enum",
-                  "options": ["inline", "asset", "catalog"],
+                  "options": ["inline", "asset", "remote"],
                   "default": "inline"
                 },
                 {
@@ -235,10 +235,10 @@
                   "show_if": { "id": "default_source", "equals": "asset" }
                 },
                 {
-                  "id": "catalog_registry_ref",
-                  "prompt": "Enter the card catalog reference. Examples: store://greentic-biz/_/adaptive-cards/default or repo://my-repo/cards/catalog.json",
+                  "id": "default_card_remote",
+                  "prompt": "Enter the remote card reference to import. Examples: https://example.com/cards/welcome.json, oci://registry/cards/welcome, store://greentic-biz/_/adaptive-cards/default, or repo://my-repo/cards/welcome.json",
                   "type": "string",
-                  "show_if": { "id": "default_source", "equals": "catalog" }
+                  "show_if": { "id": "default_source", "equals": "remote" }
                 },
                 {
                   "id": "multilingual",
@@ -269,7 +269,7 @@
             ]
           },
           "emit_config": {
-            "template": "{\n  \"node_id\": \"component-adaptive-card\",\n  \"node\": {\n    \"tool\": {\n      \"component\": \"ai.greentic.component-adaptive-card\",\n      \"default_source\": {{json state.default_source}},\n      {{#ifEq state.default_source \"inline\"}}\n      \"default_card_inline\": {{json state.default_card_inline}},\n      {{/ifEq}}\n      {{#ifEq state.default_source \"asset\"}}\n      \"default_card_asset\": {{json state.default_card_asset}},\n      {{/ifEq}}\n      {{#ifEq state.default_source \"catalog\"}}\n      \"catalog_registry_ref\": {{json state.catalog_registry_ref}},\n      {{/ifEq}}\n      \"multilingual\": {{json state.multilingual}},\n      {{#if state.multilingual}}\n      \"language_mode\": {{json state.language_mode}},\n      {{#ifEq state.language_mode \"custom\"}}\n      \"supported_locales\": {{json state.supported_locales}}\n      {{else}}\n      \"supported_locales\": null\n      {{/ifEq}}\n      {{else}}\n      \"language_mode\": \"all\",\n      \"supported_locales\": null\n      {{/if}},\n      \"direction_mode\": \"ltr\",\n      \"validation_mode\": \"warn\",\n      \"trace_enabled\": false,\n      \"trace_capture_inputs\": false\n    },\n    \"routing\": [\n      { \"to\": \"NEXT_NODE_PLACEHOLDER\" }\n    ]\n  }\n}"
+            "template": "{\n  \"node_id\": \"component-adaptive-card\",\n  \"node\": {\n    \"tool\": {\n      \"component\": \"ai.greentic.component-adaptive-card\",\n      \"default_source\": {{#ifEq state.default_source \"remote\"}}\"asset\"{{else}}{{json state.default_source}}{{/ifEq}},\n      {{#ifEq state.default_source \"inline\"}}\n      \"default_card_inline\": {{json state.default_card_inline}},\n      {{/ifEq}}\n      {{#ifEq state.default_source \"asset\"}}\n      \"default_card_asset\": {{json state.default_card_asset}},\n      {{/ifEq}}\n      {{#ifEq state.default_source \"remote\"}}\n      \"default_card_asset\": {{json state.default_card_remote}},\n      {{/ifEq}}\n      \"catalog_registry_ref\": null,\n      \"multilingual\": {{json state.multilingual}},\n      {{#if state.multilingual}}\n      \"language_mode\": {{json state.language_mode}},\n      {{#ifEq state.language_mode \"custom\"}}\n      \"supported_locales\": {{json state.supported_locales}}\n      {{else}}\n      \"supported_locales\": null\n      {{/ifEq}}\n      {{else}}\n      \"language_mode\": \"all\",\n      \"supported_locales\": null\n      {{/if}},\n      \"direction_mode\": \"ltr\",\n      \"validation_mode\": \"warn\",\n      \"trace_enabled\": false,\n      \"trace_capture_inputs\": false\n    },\n    \"routing\": [\n      { \"to\": \"NEXT_NODE_PLACEHOLDER\" }\n    ]\n  }\n}"
           }
         }
       }

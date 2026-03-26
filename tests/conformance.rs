@@ -92,11 +92,11 @@ fn manifest_dev_flows_use_conditional_questions() {
         .expect("default asset field");
     assert_eq!(asset_default["show_if"]["equals"], "asset");
 
-    let catalog_default = default_fields
+    let remote_default = default_fields
         .iter()
-        .find(|field| field["id"] == "catalog_registry_ref")
-        .expect("default catalog field");
-    assert_eq!(catalog_default["show_if"]["equals"], "catalog");
+        .find(|field| field["id"] == "default_card_remote")
+        .expect("default remote field");
+    assert_eq!(remote_default["show_if"]["equals"], "remote");
 
     let language_mode_default = default_fields
         .iter()
