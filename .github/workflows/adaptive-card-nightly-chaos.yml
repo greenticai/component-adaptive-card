@@ -39,10 +39,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-bins-
       - name: Install cargo-binstall
-        run: |
-          if ! command -v cargo-binstall >/dev/null 2>&1; then
-            cargo install cargo-binstall --locked
-          fi
+        uses: taiki-e/install-action@cargo-binstall
       - name: Install Greentic CLIs
         run: |
           cargo binstall -y greentic-dev greentic-flow greentic-integration-tester
