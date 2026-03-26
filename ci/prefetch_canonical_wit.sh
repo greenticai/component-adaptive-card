@@ -47,3 +47,11 @@ EOF
 
 echo "Prefetching greentic-interfaces =${INTERFACES_GUEST_VERSION} source package..."
 cargo fetch --manifest-path "$TMP_DIR/Cargo.toml"
+
+if ! command -v wasm-tools >/dev/null 2>&1; then
+  echo "Installing wasm-tools for CI validation..."
+  if ! command -v cargo-binstall >/dev/null 2>&1; then
+    cargo install cargo-binstall --locked
+  fi
+  cargo binstall -y wasm-tools
+fi
