@@ -3,6 +3,12 @@ set -euo pipefail
 
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 LOCK_FILE="$ROOT/Cargo.lock"
+CARGO_BIN_DIR="${CARGO_HOME:-$HOME/.cargo}/bin"
+
+export PATH="$CARGO_BIN_DIR:$PATH"
+if [[ -n "${GITHUB_PATH:-}" ]]; then
+  echo "$CARGO_BIN_DIR" >>"$GITHUB_PATH"
+fi
 
 if [[ ! -f "$LOCK_FILE" ]]; then
   echo "Cargo.lock not found at $LOCK_FILE" >&2
