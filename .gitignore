@@ -2,8 +2,10 @@
 /.cargo
 .DS_Store
 *.swp
+temp_auto_push.bat
 *.tmp
 .greentic/
 artifacts/
 result.json
-trace.json
+trace.json.gitignore
+branch_structure.json

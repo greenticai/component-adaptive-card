@@ -5,8 +5,8 @@ ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 if ! command -v wasm-tools >/dev/null 2>&1; then
-  echo "wasm-tools not found; skipping host:state capability check."
-  exit 0
+  echo "wasm-tools is required but not found on PATH: $PATH" >&2
+  exit 127
 fi
 
 if ! command -v jq >/dev/null 2>&1; then
