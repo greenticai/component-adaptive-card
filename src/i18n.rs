@@ -187,5 +187,6 @@ pub fn tf(locale: &str, key: &str, args: &[(&str, &str)]) -> String {
             return format_message(value.clone(), args);
         }
     }
-    key.to_string()
+    // Preserve {{i18n:KEY}} wrapper so downstream resolvers can try again
+    format!("{{{{i18n:{key}}}}}")
 }
