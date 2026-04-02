@@ -56,7 +56,9 @@ jobs:
           data["hashes"]["component_wasm"] = f"blake3:{digest}"
           manifest.write_text(json.dumps(data, indent=2))
           PY
-          ls -l "$WASM_BASENAME" component.publish.manifest.json
+          # Rename to component.manifest.json so greentic-pack can find it by expected name
+          cp component.publish.manifest.json component.manifest.json
+          ls -l "$WASM_BASENAME" component.manifest.json component.publish.manifest.json
       - name: Install ORAS
         uses: oras-project/setup-oras@v1
       - name: Login to GHCR
@@ -72,11 +74,13 @@ jobs:
           IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER}/components/${COMPONENT_NAME}"
           oras push "${IMAGE}:latest" \
             --annotation org.opencontainers.image.source="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
-            component.publish.manifest.json:application/vnd.greentic.component.manifest+json \
+            component.manifest.json:application/vnd.greentic.component.manifest+json \
+            component.publish.manifest.json:application/vnd.greentic.component.publish.manifest+json \
             "${WASM_BASENAME}":application/wasm
           oras push "${IMAGE}:${VERSION}" \
             --annotation org.opencontainers.image.source="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
-            component.publish.manifest.json:application/vnd.greentic.component.manifest+json \
+            component.manifest.json:application/vnd.greentic.component.manifest+json \
+            component.publish.manifest.json:application/vnd.greentic.component.publish.manifest+json \
             "${WASM_BASENAME}":application/wasm
 
   readme-gtests:
