@@ -21,6 +21,7 @@ fn base_invocation(card: serde_json::Value) -> AdaptiveCardInvocation {
             catalog_name: None,
             template_params: None,
             asset_registry: None,
+            i18n_bundle_path: None,
         },
         node_id: None,
         locale: None,
