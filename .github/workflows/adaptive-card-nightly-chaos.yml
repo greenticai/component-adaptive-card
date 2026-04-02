@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: adaptive-card-nightly-chaos
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
