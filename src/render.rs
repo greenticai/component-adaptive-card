@@ -44,6 +44,7 @@ pub fn render_card(
     let locale = i18n::resolve_locale_with_config(inv, runtime_config);
     let mut summary = BindingSummary::default();
     let (mut card, asset_resolution) = resolve_card(inv, runtime_config)?;
+    load_external_i18n_bundle(inv, &locale);
     apply_i18n_markers(&mut card, &locale);
     apply_root_locale_metadata(&mut card, &locale, runtime_config);
     apply_handlebars(&mut card, inv, &mut summary)?;
@@ -376,6 +377,58 @@ where
         }
     }
     Some(current.clone())
+}
+
+/// Attempt to load external i18n translations from pack assets.
+///
+/// When `card_spec.i18n_bundle_path` is set the function tries two resolution
+/// strategies via the host asset resolver:
+///   1. `{bundle_path}/{locale}.json` — locale-specific file
+///   2. `{bundle_path}/en.json`       — English fallback
+///   3. `{bundle_path}`               — treat the path itself as a JSON file
+///
+/// Successfully loaded JSON is merged into the external i18n bundle so that
+/// `{{i18n:KEY}}` tokens resolve against it.
+fn load_external_i18n_bundle(inv: &AdaptiveCardInvocation, locale: &str) {
+    let Some(bundle_path) = inv.card_spec.i18n_bundle_path.as_deref() else {
+        return;
+    };
+    let bundle_path = bundle_path.trim().trim_end_matches('/');
+    if bundle_path.is_empty() {
+        return;
+    }
+
+    // Clear any previously loaded external entries so successive invocations
+    // with different packs don't bleed translations.
+    i18n::clear_external_bundle();
+
+    // Build candidate paths for the requested locale and an English fallback.
+    let locale_file = format!("{bundle_path}/{locale}.json");
+    let en_file = format!("{bundle_path}/en.json");
+
+    // Try locale-specific file first.
+    if let Some(json_str) = try_resolve_asset(&locale_file) {
+        let _ = i18n::load_external_locale(locale, &json_str);
+    }
+    // Always try English as a fallback layer (unless locale is already "en").
+    if !locale.eq_ignore_ascii_case("en")
+        && let Some(json_str) = try_resolve_asset(&en_file)
+    {
+        let _ = i18n::load_external_locale("en", &json_str);
+    }
+    // If the path looks like a direct JSON file (ends with `.json`), also try
+    // loading it as-is under the requested locale.
+    if bundle_path.ends_with(".json")
+        && let Some(json_str) = try_resolve_asset(bundle_path)
+    {
+        let _ = i18n::load_external_locale(locale, &json_str);
+    }
+}
+
+/// Try to read a text asset through the host resolver, returning `None` on
+/// any error or missing file.
+fn try_resolve_asset(name: &str) -> Option<String> {
+    resolve_with_host(name).ok().flatten()
 }
 
 fn apply_i18n_markers(value: &mut Value, locale: &str) {

@@ -20,6 +20,13 @@ pub struct CardSpec {
     pub catalog_name: Option<String>,
     pub template_params: Option<Value>,
     pub asset_registry: Option<std::collections::BTreeMap<String, String>>,
+    /// Optional path (relative to pack assets) to a directory or single JSON
+    /// file containing external i18n translations.  When set, the renderer
+    /// loads `{i18n_bundle_path}/{locale}.json` (or the file itself) via the
+    /// asset resolver and merges the entries so that `{{i18n:KEY}}` tokens in
+    /// cards resolve against them.
+    #[serde(default, alias = "i18n_bundle_path")]
+    pub i18n_bundle_path: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
