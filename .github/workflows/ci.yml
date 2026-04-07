@@ -79,12 +79,10 @@ jobs:
           oras push "${IMAGE}:latest" \
             --annotation org.opencontainers.image.source="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
             component.manifest.json:application/vnd.greentic.component.manifest+json \
-            component.publish.manifest.json:application/vnd.greentic.component.publish.manifest+json \
             "${WASM_BASENAME}":application/wasm
           oras push "${IMAGE}:${VERSION}" \
             --annotation org.opencontainers.image.source="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
             component.manifest.json:application/vnd.greentic.component.manifest+json \
-            component.publish.manifest.json:application/vnd.greentic.component.publish.manifest+json \
             "${WASM_BASENAME}":application/wasm
 
   readme-gtests:
