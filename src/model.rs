@@ -27,6 +27,11 @@ pub struct CardSpec {
     /// cards resolve against them.
     #[serde(default, alias = "i18n_bundle_path")]
     pub i18n_bundle_path: Option<String>,
+    /// Pre-resolved i18n translations inlined by the host runtime.
+    /// Keyed by locale code (e.g. `{"en": {...}, "de": {...}}`).
+    /// Takes precedence over `i18n_bundle_path` asset resolution.
+    #[serde(default)]
+    pub i18n_inline: Option<Value>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
