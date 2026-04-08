@@ -390,6 +390,27 @@ where
 /// Successfully loaded JSON is merged into the external i18n bundle so that
 /// `{{i18n:KEY}}` tokens resolve against it.
 fn load_external_i18n_bundle(inv: &AdaptiveCardInvocation, locale: &str) {
+    // Clear any previously loaded external entries so successive invocations
+    // with different packs don't bleed translations.
+    i18n::clear_external_bundle();
+
+    // Prefer pre-resolved inline i18n data from the host runtime.
+    if let Some(serde_json::Value::Object(locales)) = &inv.card_spec.i18n_inline {
+        // Load the requested locale.
+        if let Some(serde_json::Value::Object(entries)) = locales.get(locale) {
+            let json_str = serde_json::to_string(entries).unwrap_or_default();
+            let _ = i18n::load_external_locale(locale, &json_str);
+        }
+        // Always load English as fallback.
+        if !locale.eq_ignore_ascii_case("en") {
+            if let Some(serde_json::Value::Object(entries)) = locales.get("en") {
+                let json_str = serde_json::to_string(entries).unwrap_or_default();
+                let _ = i18n::load_external_locale("en", &json_str);
+            }
+        }
+        return;
+    }
+
     let Some(bundle_path) = inv.card_spec.i18n_bundle_path.as_deref() else {
         return;
     };
@@ -397,10 +418,6 @@ fn load_external_i18n_bundle(inv: &AdaptiveCardInvocation, locale: &str) {
     if bundle_path.is_empty() {
         return;
     }
-
-    // Clear any previously loaded external entries so successive invocations
-    // with different packs don't bleed translations.
-    i18n::clear_external_bundle();
 
     // Build candidate paths for the requested locale and an English fallback.
     let locale_file = format!("{bundle_path}/{locale}.json");
