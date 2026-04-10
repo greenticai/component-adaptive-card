@@ -48,8 +48,7 @@ fn collect_validation_issues<F>(collect: F) -> Vec<ValidationIssue>
 where
     F: FnOnce() -> Vec<ValidationIssue>,
 {
-    catch_unwind(AssertUnwindSafe(collect))
-        .unwrap_or_else(|_| vec![schema_validator_panic_issue()])
+    catch_unwind(AssertUnwindSafe(collect)).unwrap_or_else(|_| vec![schema_validator_panic_issue()])
 }
 
 fn schema_validator_panic_issue() -> ValidationIssue {
