@@ -1,8 +1,0 @@
-#SET OUT=${WORK_DIR}/case_0623.json
-#WORKDIR ${REPO_ROOT}
-#RUN greentic-component test --wasm ${REPO_ROOT}/target/wasm32-wasip2/release/component_adaptive_card.wasm --manifest ${REPO_ROOT}/component.manifest.json --op card --input ${REPO_ROOT}/tests/fixtures/generated/cases/case_0623.json
-#EXPECT_EXIT 0
-#CAPTURE_JSON > ${OUT}
-#EXPECT_JSONPATH ${OUT} result.error.code equals AC_ASSET_NOT_FOUND
-#EXPECT_JSONPATH ${OUT} result.error.details.validation_issues[*].code contains AC_ASSET_NOT_FOUND
-#SAVE_ARTIFACT ${OUT}

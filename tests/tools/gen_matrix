@@ -4,6 +4,7 @@ import itertools
 import json
 import shutil
 from pathlib import Path
+from typing import Optional
 
 
 def load_spec(path: Path) -> dict:
@@ -36,7 +37,11 @@ def apply_constraints(combos: list[dict], constraints: dict) -> list[dict]:
     return filtered
 
 
-def build_inline_card(binding: str):
+def canonical_json(payload: dict) -> str:
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"))
+
+
+def build_inline_card(binding: str, interaction: str):
     text = "Hello"
     payload = {}
     if binding == "handlebars":
@@ -65,6 +70,47 @@ def build_inline_card(binding: str):
             }
         ],
     }
+    if interaction == "submit":
+        card["actions"] = [
+            {
+                "type": "Action.Submit",
+                "title": "Save",
+                "id": "save",
+            }
+        ]
+    elif interaction == "showcard":
+        card["actions"] = [
+            {
+                "type": "Action.ShowCard",
+                "title": "Details",
+                "id": "details",
+                "card": {
+                    "type": "AdaptiveCard",
+                    "version": "1.3",
+                    "body": [],
+                },
+            }
+        ]
+    elif interaction == "toggle":
+        card["actions"] = [
+            {
+                "type": "Action.ToggleVisibility",
+                "title": "Toggle",
+                "targetElements": ["section-1"],
+            }
+        ]
+        card["body"].append(
+            {
+                "type": "Container",
+                "id": "section-1",
+                "items": [
+                    {
+                        "type": "TextBlock",
+                        "text": "Details",
+                    }
+                ],
+            }
+        )
     return card, payload
 
 
@@ -111,7 +157,7 @@ def build_case(combo: dict):
         invocation["interaction"] = interaction
 
     if combo["card_source"] == "inline":
-        card, payload = build_inline_card(combo["bindings"])
+        card, payload = build_inline_card(combo["bindings"], combo["interaction"])
         invocation["card_spec"]["inline_json"] = card
         if payload:
             invocation["payload"] = payload
@@ -145,11 +191,109 @@ def build_case(combo: dict):
     return invocation, expect, env
 
 
+def effective_combo(combo: dict) -> dict:
+    effective = dict(combo)
+    if combo["card_source"] == "inline":
+        effective["assets"] = "n/a"
+    else:
+        effective["bindings"] = "n/a"
+    return effective
+
+
+def build_entries(combos: list[dict]) -> list[dict]:
+    entries = []
+    for idx, combo in enumerate(combos):
+        invocation, expect, env = build_case(combo)
+
+        workdir = None
+        if combo["card_source"] != "inline":
+            workdir = "${REPO_ROOT}"
+        if combo["assets"] == "env":
+            workdir = "${REPO_ROOT}"
+
+        entries.append(
+            {
+                "combo": combo,
+                "effective_combo": effective_combo(combo),
+                "invocation": invocation,
+                "expect": expect,
+                "env": env,
+                "workdir": workdir,
+                "signature": canonical_json(
+                    {
+                        "invocation": invocation,
+                        "expect": expect,
+                        "env": env,
+                        "workdir": workdir,
+                    }
+                ),
+                "sort_key": (idx, canonical_json(effective_combo(combo))),
+            }
+        )
+    return entries
+
+
+def dedupe_entries(entries: list[dict]) -> list[dict]:
+    seen = set()
+    deduped = []
+    for entry in entries:
+        if entry["signature"] in seen:
+            continue
+        seen.add(entry["signature"])
+        deduped.append(entry)
+    return deduped
+
+
+def combo_features(combo: dict) -> set[tuple]:
+    items = sorted(combo.items())
+    features = set()
+    for size in (1, 2, 3):
+        for group in itertools.combinations(items, size):
+            features.add((size, group))
+    return features
+
+
+def select_diverse_entries(entries: list[dict], limit: int) -> list[dict]:
+    if len(entries) <= limit:
+        return entries
+
+    remaining = [
+        {
+            **entry,
+            "features": combo_features(entry["effective_combo"]),
+        }
+        for entry in entries
+    ]
+    feature_weights = {1: 1, 2: 4, 3: 16}
+    covered = set()
+    selected = []
+
+    while remaining and len(selected) < limit:
+        best = None
+        best_rank = None
+        for entry in remaining:
+            score = sum(
+                feature_weights[feature[0]]
+                for feature in entry["features"]
+                if feature not in covered
+            )
+            rank = (score, -entry["sort_key"][0], entry["sort_key"][1])
+            if best_rank is None or rank > best_rank:
+                best = entry
+                best_rank = rank
+
+        selected.append(best)
+        covered.update(best["features"])
+        remaining.remove(best)
+
+    return [{key: value for key, value in entry.items() if key != "features"} for entry in selected]
+
+
 def write_json(path: Path, payload: dict):
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
-def write_gtest(path: Path, case_id: str, case_path: Path, expect: dict, env: dict, workdir: str | None):
+def write_gtest(path: Path, case_id: str, case_path: Path, expect: dict, env: dict, workdir: Optional[str]):
     lines = []
     lines.append(f"#SET OUT=${{WORK_DIR}}/{case_id}.json")
     if workdir:
@@ -186,13 +330,17 @@ def generate(spec_path: Path, mode: str):
     spec = load_spec(spec_path)
     axes = spec["axes"]
     combos = apply_constraints(cartesian(axes), spec.get("constraints", {}))
+    entries = dedupe_entries(build_entries(combos))
 
     if mode == "pairwise":
         limit = int(spec.get("pairwise_count", 30))
-        combos = combos[:limit]
+        entries = select_diverse_entries(entries, limit)
+    elif mode == "full":
+        limit = int(spec.get("full_count", len(entries)))
+        entries = select_diverse_entries(entries, limit)
 
-    cases_dir = Path("tests/fixtures/generated/cases")
-    expect_dir = Path("tests/fixtures/generated/expect")
+    cases_dir = Path(f"tests/fixtures/generated/{mode}/cases")
+    expect_dir = Path(f"tests/fixtures/generated/{mode}/expect")
     gtest_dir = Path(f"tests/gtests/matrix/{mode}")
     ensure_dir(cases_dir, wipe=(mode == "full"))
     ensure_dir(expect_dir, wipe=(mode == "full"))
@@ -202,26 +350,31 @@ def generate(spec_path: Path, mode: str):
     asset_registry = {"card.json": "card.json", "readme-card": "assets/readme-card.json"}
     asset_registry_path.write_text(json.dumps(asset_registry, indent=2), encoding="utf-8")
 
-    for idx, combo in enumerate(combos, start=1):
+    for idx, entry in enumerate(entries, start=1):
         case_id = f"case_{idx:04d}"
-        invocation, expect, env = build_case(combo)
+        combo = entry["combo"]
+        invocation = entry["invocation"]
+        expect = entry["expect"]
+        env = entry["env"]
         case_path = cases_dir / f"{case_id}.json"
         expect_path = expect_dir / f"{case_id}.yaml"
         write_json(case_path, invocation)
-        write_json(expect_path, {"case_id": case_id, "combo": combo, "expect": expect})
-
-        workdir = None
-        if combo["card_source"] != "inline":
-            workdir = "${REPO_ROOT}"
-        if combo["assets"] == "env":
-            workdir = "${REPO_ROOT}"
+        write_json(
+            expect_path,
+            {
+                "case_id": case_id,
+                "combo": combo,
+                "effective_combo": entry["effective_combo"],
+                "expect": expect,
+            },
+        )
         write_gtest(
             gtest_dir / f"{case_id}.gtest",
             case_id,
             case_path,
             expect,
             env,
-            workdir,
+            entry["workdir"],
         )
 
 

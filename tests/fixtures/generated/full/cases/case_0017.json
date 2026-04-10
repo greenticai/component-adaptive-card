@@ -1,0 +1,12 @@
+{
+  "mode": "renderAndValidate",
+  "card_source": "asset",
+  "card_spec": {
+    "template_params": {},
+    "asset_path": "card.json",
+    "asset_registry": {
+      "card.json": "card.json"
+    }
+  },
+  "node_id": "matrix-node"
+}

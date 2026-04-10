@@ -1,0 +1,9 @@
+{
+  "mode": "renderAndValidate",
+  "card_source": "catalog",
+  "card_spec": {
+    "template_params": {},
+    "catalog_name": "missing-card"
+  },
+  "node_id": "matrix-node"
+}

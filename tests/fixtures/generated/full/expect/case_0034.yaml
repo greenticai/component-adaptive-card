@@ -1,0 +1,22 @@
+{
+  "case_id": "case_0034",
+  "combo": {
+    "card_source": "inline",
+    "mode": "renderAndValidate",
+    "bindings": "handlebars",
+    "assets": "registry",
+    "interaction": "showcard",
+    "node_id": "none"
+  },
+  "effective_combo": {
+    "card_source": "inline",
+    "mode": "renderAndValidate",
+    "bindings": "handlebars",
+    "assets": "n/a",
+    "interaction": "showcard",
+    "node_id": "none"
+  },
+  "expect": {
+    "pass": true
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "mode": "render",
+  "card_source": "inline",
+  "card_spec": {
+    "template_params": {},
+    "inline_json": {
+      "type": "AdaptiveCard",
+      "version": "1.3",
+      "body": [
+        {
+          "type": "TextBlock",
+          "text": "${payload.count == 1 ? \"one\" : \"many\"}"
+        }
+      ],
+      "actions": [
+        {
+          "type": "Action.ShowCard",
+          "title": "Details",
+          "id": "details",
+          "card": {
+            "type": "AdaptiveCard",
+            "version": "1.3",
+            "body": []
+          }
+        }
+      ]
+    }
+  },
+  "interaction": {
+    "interaction_type": "ShowCard",
+    "action_id": "details",
+    "card_instance_id": "card-1",
+    "metadata": {
+      "subcardId": "details"
+    }
+  },
+  "payload": {
+    "count": 1
+  }
+}

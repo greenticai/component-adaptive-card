@@ -1,3 +1,5 @@
+use std::panic::{AssertUnwindSafe, catch_unwind};
+
 use once_cell::sync::Lazy;
 use serde_json::Value;
 
@@ -34,10 +36,29 @@ pub fn locate_invocation_candidate(value: &Value) -> Option<Value> {
 }
 
 pub fn validate_invocation_schema(value: &Value) -> Vec<ValidationIssue> {
-    INVOCATION_SCHEMA
-        .iter_errors(value)
-        .map(|error| map_schema_error(&error))
-        .collect()
+    collect_validation_issues(|| {
+        INVOCATION_SCHEMA
+            .iter_errors(value)
+            .map(|error| map_schema_error(&error))
+            .collect()
+    })
+}
+
+fn collect_validation_issues<F>(collect: F) -> Vec<ValidationIssue>
+where
+    F: FnOnce() -> Vec<ValidationIssue>,
+{
+    catch_unwind(AssertUnwindSafe(collect))
+        .unwrap_or_else(|_| vec![schema_validator_panic_issue()])
+}
+
+fn schema_validator_panic_issue() -> ValidationIssue {
+    ValidationIssue {
+        code: "AC_INVOCATION_SCHEMA_ERROR".to_string(),
+        msg_key: Some("validation.invocation.schema_error".to_string()),
+        message: "Invocation schema validator panicked".to_string(),
+        path: "/".to_string(),
+    }
 }
 
 fn map_schema_error(error: &jsonschema::ValidationError) -> ValidationIssue {
@@ -105,4 +126,26 @@ fn find_invocation_value(value: &Value) -> Option<Value> {
         }
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{collect_validation_issues, validate_invocation_schema};
+
+    #[test]
+    fn schema_validation_returns_issues_for_invalid_input() {
+        let issues = validate_invocation_schema(&serde_json::json!({}));
+
+        assert!(!issues.is_empty());
+        assert_eq!(issues[0].code, "AC_INVOCATION_MISSING_FIELD");
+    }
+
+    #[test]
+    fn schema_validation_converts_panics_into_schema_errors() {
+        let issues = collect_validation_issues(|| panic!("boom"));
+
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].code, "AC_INVOCATION_SCHEMA_ERROR");
+        assert_eq!(issues[0].path, "/");
+    }
 }

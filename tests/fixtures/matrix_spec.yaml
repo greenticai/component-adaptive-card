@@ -1,5 +1,6 @@
 {
   "pairwise_count": 30,
+  "full_count": 48,
   "axes": {
     "card_source": ["inline", "asset", "catalog"],
     "mode": ["render", "validate", "renderAndValidate"],
@@ -9,6 +10,11 @@
     "node_id": ["none", "present"]
   },
   "constraints": {
-    "exclude": []
+    "exclude": [
+      { "card_source": "asset", "interaction": "showcard" },
+      { "card_source": "asset", "interaction": "toggle" },
+      { "card_source": "catalog", "interaction": "showcard" },
+      { "card_source": "catalog", "interaction": "toggle" }
+    ]
   }
 }

@@ -1,0 +1,9 @@
+{
+  "mode": "render",
+  "card_source": "asset",
+  "card_spec": {
+    "template_params": {},
+    "asset_path": "card.json"
+  },
+  "node_id": "matrix-node"
+}

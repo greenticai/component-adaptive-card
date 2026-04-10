@@ -1,0 +1,16 @@
+{
+  "mode": "renderAndValidate",
+  "card_source": "asset",
+  "card_spec": {
+    "template_params": {},
+    "asset_path": "missing.json"
+  },
+  "interaction": {
+    "interaction_type": "Submit",
+    "action_id": "save",
+    "card_instance_id": "card-1",
+    "raw_inputs": {
+      "comment": "ok"
+    }
+  }
+}
