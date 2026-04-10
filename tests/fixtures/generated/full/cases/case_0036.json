@@ -1,0 +1,12 @@
+{
+  "mode": "render",
+  "card_source": "catalog",
+  "card_spec": {
+    "template_params": {},
+    "catalog_name": "readme-card",
+    "asset_registry": {
+      "readme-card": "card.json"
+    }
+  },
+  "node_id": "matrix-node"
+}

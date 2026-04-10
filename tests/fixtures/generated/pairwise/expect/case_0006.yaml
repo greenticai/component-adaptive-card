@@ -1,0 +1,26 @@
+{
+  "case_id": "case_0006",
+  "combo": {
+    "card_source": "catalog",
+    "mode": "render",
+    "bindings": "handlebars",
+    "assets": "missing",
+    "interaction": "submit",
+    "node_id": "present"
+  },
+  "effective_combo": {
+    "card_source": "catalog",
+    "mode": "render",
+    "bindings": "n/a",
+    "assets": "missing",
+    "interaction": "submit",
+    "node_id": "present"
+  },
+  "expect": {
+    "pass": false,
+    "error_code": "AC_ASSET_NOT_FOUND",
+    "issue_codes": [
+      "AC_ASSET_NOT_FOUND"
+    ]
+  }
+}

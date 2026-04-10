@@ -1,0 +1,21 @@
+{
+  "mode": "validate",
+  "card_source": "inline",
+  "card_spec": {
+    "template_params": {},
+    "inline_json": {
+      "type": "AdaptiveCard",
+      "version": "1.3",
+      "body": [
+        {
+          "type": "TextBlock",
+          "text": "Hello @{payload.title}"
+        }
+      ]
+    }
+  },
+  "node_id": "matrix-node",
+  "payload": {
+    "title": "World"
+  }
+}

@@ -2,7 +2,7 @@ name: Adaptive Card Nightly Chaos
 
 on:
   schedule:
-    - cron: "17 3 * * *"
+    - cron: "0 2 * * *"
   workflow_dispatch:
 
 permissions:

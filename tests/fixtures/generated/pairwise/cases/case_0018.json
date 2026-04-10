@@ -1,0 +1,17 @@
+{
+  "mode": "validate",
+  "card_source": "catalog",
+  "card_spec": {
+    "template_params": {},
+    "catalog_name": "readme-card"
+  },
+  "node_id": "matrix-node",
+  "interaction": {
+    "interaction_type": "Submit",
+    "action_id": "save",
+    "card_instance_id": "card-1",
+    "raw_inputs": {
+      "comment": "ok"
+    }
+  }
+}

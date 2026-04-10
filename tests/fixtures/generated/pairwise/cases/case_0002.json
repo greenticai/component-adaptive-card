@@ -1,0 +1,20 @@
+{
+  "mode": "validate",
+  "card_source": "asset",
+  "card_spec": {
+    "template_params": {},
+    "asset_path": "card.json",
+    "asset_registry": {
+      "card.json": "card.json"
+    }
+  },
+  "node_id": "matrix-node",
+  "interaction": {
+    "interaction_type": "Submit",
+    "action_id": "save",
+    "card_instance_id": "card-1",
+    "raw_inputs": {
+      "comment": "ok"
+    }
+  }
+}
