@@ -379,17 +379,43 @@ where
     Some(current.clone())
 }
 
-/// Attempt to load external i18n translations from pack assets.
+/// Attempt to load external i18n translations.
 ///
-/// When `card_spec.i18n_bundle_path` is set the function tries two resolution
-/// strategies via the host asset resolver:
-///   1. `{bundle_path}/{locale}.json` — locale-specific file
-///   2. `{bundle_path}/en.json`       — English fallback
-///   3. `{bundle_path}`               — treat the path itself as a JSON file
+/// Resolution priority:
+/// 1. `card_spec.i18n_inline` — pre-resolved bundles injected by the host.
+///    This is the only path that works in WASM mode, where the component
+///    has no access to pack assets through the host asset resolver.
+/// 2. `card_spec.i18n_bundle_path` via the host asset resolver — used only
+///    when running in-process (Rust-linked, e.g. desktop tooling) where a
+///    resolver is registered. Tries:
+///    a. `{bundle_path}/{locale}.json` — locale-specific file
+///    b. `{bundle_path}/en.json`       — English fallback
+///    c. `{bundle_path}`               — treat the path itself as JSON
 ///
 /// Successfully loaded JSON is merged into the external i18n bundle so that
 /// `{{i18n:KEY}}` tokens resolve against it.
 fn load_external_i18n_bundle(inv: &AdaptiveCardInvocation, locale: &str) {
+    // Clear any previously loaded external entries so successive invocations
+    // with different packs don't bleed translations.
+    i18n::clear_external_bundle();
+
+    // Prefer inline bundles — host pre-resolves these for WASM components
+    // that cannot read pack assets directly.
+    if let Some(inline) = inv.card_spec.i18n_inline.as_ref()
+        && !inline.is_empty()
+    {
+        for (locale_code, entries) in inline {
+            // Skip empty / non-object payloads instead of erroring out so a
+            // partial bundle (e.g. only `en` available) doesn't drop the rest.
+            if entries.is_object()
+                && let Ok(json_str) = serde_json::to_string(entries)
+            {
+                let _ = i18n::load_external_locale(locale_code, &json_str);
+            }
+        }
+        return;
+    }
+
     let Some(bundle_path) = inv.card_spec.i18n_bundle_path.as_deref() else {
         return;
     };
@@ -397,10 +423,6 @@ fn load_external_i18n_bundle(inv: &AdaptiveCardInvocation, locale: &str) {
     if bundle_path.is_empty() {
         return;
     }
-
-    // Clear any previously loaded external entries so successive invocations
-    // with different packs don't bleed translations.
-    i18n::clear_external_bundle();
 
     // Build candidate paths for the requested locale and an English fallback.
     let locale_file = format!("{bundle_path}/{locale}.json");
