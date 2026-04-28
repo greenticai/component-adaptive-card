@@ -178,7 +178,7 @@ dependencies = [
 
 [[package]]
 name = "component-adaptive-card"
-version = "0.1.27"
+version = "0.2.0"
 dependencies = [
  "blake3",
  "ciborium",
