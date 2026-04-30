@@ -276,7 +276,7 @@
     }
   },
   "hashes": {
-    "component_wasm": "blake3:eb077db67fe66be8a23d56f75b9715094bb6c53231cfd7ab8a85d9e2acf6fa2c"
+    "component_wasm": "blake3:26a377c55f64f1a22bd70701e049ff2f3ef42e7f22d36954ddd38b37bc6a05b3"
   },
   "id": "ai.greentic.component-adaptive-card",
   "limits": {
@@ -522,6 +522,6 @@
     "supported": ["stateless"]
   },
   "supports": ["messaging"],
-  "version": "0.1.26",
+  "version": "0.2.0",
   "world": "greentic:component/component-v0-v6-v0@0.6.0"
 }
