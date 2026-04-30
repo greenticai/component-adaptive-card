@@ -27,6 +27,14 @@ pub struct CardSpec {
     /// cards resolve against them.
     #[serde(default, alias = "i18n_bundle_path")]
     pub i18n_bundle_path: Option<String>,
+    /// Pre-resolved i18n bundles keyed by locale code, injected by the host
+    /// before invocation. The component prefers these entries over
+    /// `i18n_bundle_path` because in WASM mode it has no host asset resolver
+    /// and cannot read pack assets directly. The keys are locale codes
+    /// (e.g. `"en"`, `"id"`, `"en-GB"`); each value is an object of
+    /// `key -> translated string`.
+    #[serde(default, alias = "i18n_inline")]
+    pub i18n_inline: Option<std::collections::BTreeMap<String, Value>>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
