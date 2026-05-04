@@ -9,6 +9,7 @@ result.json
 trace.json
 # CI workflow artifacts (codex-security-fix, dependency-review, codex-semver-fix)
 all-dependabot-alerts.json
+temp_auto_push.bat
 all-code-scanning-alerts.json
 dependabot-alerts.json
 code-scanning-alerts.json
@@ -20,3 +21,5 @@ SECURITY_FIX_REPORT.md
 DEPENDENCY_FIX_REPORT.md
 semver-output.txt
 SEMVER_FIX_REPORT.md
+.gitignore
+branch_structure.json
