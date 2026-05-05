@@ -981,21 +981,20 @@ pub fn validate_card(card: &Value, locale: &str) -> Vec<ValidationIssue> {
                             );
                         }
                     }
-                    "Input.Toggle" => {
+                    "Input.Toggle"
                         if map
                             .get("title")
                             .and_then(|v| v.as_str())
                             .unwrap_or("")
-                            .is_empty()
-                        {
-                            push_issue(
-                                locale,
-                                path,
-                                "missing-title",
-                                "Input.Toggle should include a title",
-                                issues,
-                            );
-                        }
+                            .is_empty() =>
+                    {
+                        push_issue(
+                            locale,
+                            path,
+                            "missing-title",
+                            "Input.Toggle should include a title",
+                            issues,
+                        );
                     }
                     "Input.Number" => {
                         if let (Some(min), Some(max)) = (
@@ -1106,21 +1105,20 @@ pub fn validate_card(card: &Value, locale: &str) -> Vec<ValidationIssue> {
     ) {
         let kind = map.get("type").and_then(|v| v.as_str()).unwrap_or_default();
         match kind {
-            "Action.OpenUrl" => {
+            "Action.OpenUrl"
                 if !map
                     .get("url")
                     .and_then(|v| v.as_str())
                     .map(|s| !s.is_empty())
-                    .unwrap_or(false)
-                {
-                    push_issue(
-                        locale,
-                        path,
-                        "missing-url",
-                        "Action.OpenUrl must include a url",
-                        issues,
-                    );
-                }
+                    .unwrap_or(false) =>
+            {
+                push_issue(
+                    locale,
+                    path,
+                    "missing-url",
+                    "Action.OpenUrl must include a url",
+                    issues,
+                );
             }
             "Action.Execute" => {
                 if map.get("verb").and_then(|v| v.as_str()).is_none() {
