@@ -1341,9 +1341,7 @@ mod tests {
             "interpolated placeholder must remain as ${{num_travellers}} text; got blocks: {text_blocks:?}"
         );
         assert!(
-            text_blocks
-                .iter()
-                .any(|text| text == &"${trip_purpose}"),
+            text_blocks.iter().any(|text| text == &"${trip_purpose}"),
             "single-placeholder text must remain as ${{trip_purpose}}; got blocks: {text_blocks:?}"
         );
     }
