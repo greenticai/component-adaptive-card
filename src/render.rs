@@ -11,6 +11,7 @@ use crate::expression::{ExpressionEngine, SimpleExpressionEngine, stringify_valu
 use crate::i18n;
 use crate::model::{
     AdaptiveCardInvocation, CardFeatureSummary, CardSource, CardSpec, ValidationIssue,
+    ValidationMode,
 };
 
 #[derive(Debug, Default, Clone)]
@@ -50,7 +51,13 @@ pub fn render_card(
     apply_handlebars(&mut card, inv, &mut summary)?;
     let ctx = BindingContext::from_invocation(inv);
     let engine = SimpleExpressionEngine;
-    apply_bindings(&mut card, &ctx, &engine, &mut summary)?;
+    apply_bindings(
+        &mut card,
+        &ctx,
+        &engine,
+        &mut summary,
+        inv.validation_mode.clone(),
+    )?;
 
     let features = analyze_features(&card);
     let validation_issues = validate_card(&card, &locale);
@@ -499,6 +506,7 @@ fn apply_bindings(
     ctx: &BindingContext,
     engine: &dyn ExpressionEngine,
     summary: &mut BindingSummary,
+    mode: ValidationMode,
 ) -> Result<(), ComponentError> {
     match value {
         Value::String(text) => {
@@ -510,9 +518,18 @@ fn apply_bindings(
                         return Ok(());
                     }
                     summary.missing_paths += 1;
-                    return Err(ComponentError::Binding(format!(
-                        "missing binding path: {expr}"
-                    )));
+                    if mode == ValidationMode::Error {
+                        return Err(ComponentError::Binding(format!(
+                            "missing binding path: {expr}"
+                        )));
+                    }
+                    // Off / Warn: preserve the original placeholder text so
+                    // the card still renders (with the literal `${expr}`
+                    // visible to the user) instead of bailing the whole
+                    // card to a TierD empty plan. Bumping summary.missing_paths
+                    // keeps the diagnostic available to callers that want
+                    // to escalate.
+                    return Ok(());
                 }
                 if let Some(resolved) = engine.eval(expr, ctx) {
                     *value = match resolved {
@@ -523,9 +540,12 @@ fn apply_bindings(
                     return Ok(());
                 }
                 summary.missing_paths += 1;
-                return Err(ComponentError::Binding(format!(
-                    "invalid expression: {expr}"
-                )));
+                if mode == ValidationMode::Error {
+                    return Err(ComponentError::Binding(format!(
+                        "invalid expression: {expr}"
+                    )));
+                }
+                return Ok(());
             }
             if let Some(path) = extract_single_placeholder(text) {
                 if let Some(resolved) = ctx.lookup(path) {
@@ -534,23 +554,26 @@ fn apply_bindings(
                     return Ok(());
                 }
                 summary.missing_paths += 1;
-                return Err(ComponentError::Binding(format!(
-                    "missing binding path: {path}"
-                )));
+                if mode == ValidationMode::Error {
+                    return Err(ComponentError::Binding(format!(
+                        "missing binding path: {path}"
+                    )));
+                }
+                return Ok(());
             }
-            let replaced = replace_placeholders(text, ctx, summary)?;
+            let replaced = replace_placeholders(text, ctx, summary, mode.clone())?;
             *value = Value::String(replaced);
             Ok(())
         }
         Value::Array(items) => {
             for item in items {
-                apply_bindings(item, ctx, engine, summary)?;
+                apply_bindings(item, ctx, engine, summary, mode.clone())?;
             }
             Ok(())
         }
         Value::Object(map) => {
             for entry in map.values_mut() {
-                apply_bindings(entry, ctx, engine, summary)?;
+                apply_bindings(entry, ctx, engine, summary, mode.clone())?;
             }
             Ok(())
         }
@@ -648,6 +671,7 @@ fn replace_placeholders(
     input: &str,
     ctx: &BindingContext,
     summary: &mut BindingSummary,
+    mode: ValidationMode,
 ) -> Result<String, ComponentError> {
     let mut output = String::new();
     let mut cursor = 0;
@@ -679,11 +703,25 @@ fn replace_placeholders(
         let rest = &input[absolute + 2..];
         if let Some(end) = rest.find('}') {
             let path = &rest[..end];
-            let Some(replacement) = ctx.lookup(path.trim()) else {
-                summary.missing_paths += 1;
-                return Err(ComponentError::Binding(format!(
-                    "missing binding path: {path}"
-                )));
+            let replacement = match ctx.lookup(path.trim()) {
+                Some(value) => value,
+                None => {
+                    summary.missing_paths += 1;
+                    if mode == ValidationMode::Error {
+                        return Err(ComponentError::Binding(format!(
+                            "missing binding path: {path}"
+                        )));
+                    }
+                    // Off / Warn: emit the literal placeholder back into the
+                    // output so the surrounding text keeps rendering. See the
+                    // matching comment in apply_bindings.
+                    output.push(marker as char);
+                    output.push('{');
+                    output.push_str(path);
+                    output.push('}');
+                    cursor = absolute + 2 + end + 1;
+                    continue;
+                }
             };
             let replacement = match replacement {
                 Value::String(s) => s,
@@ -1227,4 +1265,116 @@ pub fn validate_card(card: &Value, locale: &str) -> Vec<ValidationIssue> {
         &mut action_ids,
     );
     issues
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::CardSpec;
+    use serde_json::json;
+
+    fn invocation_with_card(card: Value, mode: ValidationMode) -> AdaptiveCardInvocation {
+        AdaptiveCardInvocation {
+            card_source: CardSource::Inline,
+            card_spec: CardSpec {
+                inline_json: Some(card),
+                ..CardSpec::default()
+            },
+            validation_mode: mode,
+            ..AdaptiveCardInvocation::default()
+        }
+    }
+
+    fn card_with_missing_bindings() -> Value {
+        json!({
+            "type": "AdaptiveCard",
+            "version": "1.6",
+            "body": [
+                {"type": "TextBlock", "text": "Travellers: ${num_travellers}"},
+                {"type": "TextBlock", "text": "${trip_purpose}"}
+            ]
+        })
+    }
+
+    #[test]
+    fn missing_binding_with_mode_error_returns_err() {
+        // Default contract: ValidationMode::Error preserves the previous
+        // strict behaviour. Callers who explicitly opt into hard failures
+        // still get them.
+        let inv = invocation_with_card(card_with_missing_bindings(), ValidationMode::Error);
+        let result = render_card(&inv, &RuntimeConfig::default());
+        assert!(
+            matches!(result, Err(ComponentError::Binding(_))),
+            "expected Binding error in Error mode, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn missing_binding_with_mode_warn_renders_literal_placeholder() {
+        // The bug this fix targets: a card with unresolved `${var}` bindings
+        // used to abort the entire render even when the operator had
+        // configured `validation_mode: warn`. Now the placeholder text is
+        // preserved literally, the card still renders, and the missing
+        // path count surfaces on the binding summary so callers can decide
+        // whether to escalate.
+        let inv = invocation_with_card(card_with_missing_bindings(), ValidationMode::Warn);
+        let outcome = render_card(&inv, &RuntimeConfig::default())
+            .expect("Warn mode must render even with missing bindings");
+
+        // Two missing paths in the card body — both counted, neither aborted.
+        assert_eq!(outcome.binding_summary.missing_paths, 2);
+
+        // Literal placeholder text is preserved in the rendered card.
+        let body = outcome
+            .card
+            .get("body")
+            .and_then(|v| v.as_array())
+            .expect("body is an array");
+        let text_blocks: Vec<&str> = body
+            .iter()
+            .filter_map(|node| node.get("text").and_then(|t| t.as_str()))
+            .collect();
+        assert!(
+            text_blocks
+                .iter()
+                .any(|text| text.contains("${num_travellers}")),
+            "interpolated placeholder must remain as ${{num_travellers}} text; got blocks: {text_blocks:?}"
+        );
+        assert!(
+            text_blocks
+                .iter()
+                .any(|text| text == &"${trip_purpose}"),
+            "single-placeholder text must remain as ${{trip_purpose}}; got blocks: {text_blocks:?}"
+        );
+    }
+
+    #[test]
+    fn missing_binding_with_mode_off_also_renders_literal_placeholder() {
+        // Off semantically means "skip validation entirely". Missing bindings
+        // should not be a render-blocker either. Same end state as Warn
+        // except the caller can choose to ignore the summary diagnostics.
+        let inv = invocation_with_card(card_with_missing_bindings(), ValidationMode::Off);
+        let outcome = render_card(&inv, &RuntimeConfig::default())
+            .expect("Off mode must render even with missing bindings");
+        assert_eq!(outcome.binding_summary.missing_paths, 2);
+    }
+
+    #[test]
+    fn resolved_binding_still_substitutes_under_warn_mode() {
+        // Regression guard: the Warn-mode soft path must not change resolution
+        // when the binding *is* present.
+        let card = json!({
+            "type": "AdaptiveCard",
+            "version": "1.6",
+            "body": [{"type": "TextBlock", "text": "Hello ${payload.name}"}]
+        });
+        let mut inv = invocation_with_card(card, ValidationMode::Warn);
+        inv.payload = json!({"name": "Bima"});
+
+        let outcome = render_card(&inv, &RuntimeConfig::default()).expect("render ok");
+        assert_eq!(outcome.binding_summary.missing_paths, 0);
+        let body = outcome.card.get("body").and_then(|v| v.as_array()).unwrap();
+        let rendered = body[0].get("text").and_then(|t| t.as_str()).unwrap();
+        assert_eq!(rendered, "Hello Bima");
+    }
 }
