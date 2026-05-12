@@ -1,5 +1,5 @@
 #SET OUT=${WORK_DIR}/invalid_expression.json
-#RUN greentic-component test --wasm ${REPO_ROOT}/target/wasm32-wasip2/release/component_adaptive_card.wasm --manifest ${REPO_ROOT}/component.manifest.json --op card --input-json '{"card_source":"inline","card_spec":{"inline_json":{"type":"AdaptiveCard","version":"1.3","body":[{"type":"TextBlock","text":"\u0024{payload.missing ?}"}]}}}'
+#RUN greentic-component test --wasm ${REPO_ROOT}/target/wasm32-wasip2/release/component_adaptive_card.wasm --manifest ${REPO_ROOT}/component.manifest.json --op card --input-json '{"card_source":"inline","validation_mode":"error","card_spec":{"inline_json":{"type":"AdaptiveCard","version":"1.3","body":[{"type":"TextBlock","text":"\u0024{payload.missing ?}"}]}}}'
 #EXPECT_EXIT 0
 #CAPTURE_JSON > ${OUT}
 #EXPECT_JSONPATH ${OUT} result.error.code equals AC_BINDING_EVAL_ERROR
