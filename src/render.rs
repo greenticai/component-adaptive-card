@@ -59,6 +59,10 @@ pub fn render_card(
         inv.validation_mode.clone(),
     )?;
 
+    if let Some(prefill) = inv.prefill.as_ref() {
+        apply_prefill(&mut card, prefill);
+    }
+
     let features = analyze_features(&card);
     let validation_issues = validate_card(&card, &locale);
 
@@ -297,6 +301,7 @@ pub struct BindingContext {
     session: Value,
     state: Value,
     template_params: Value,
+    prefill: Value,
 }
 
 impl BindingContext {
@@ -309,6 +314,11 @@ impl BindingContext {
                 .card_spec
                 .template_params
                 .clone()
+                .unwrap_or(Value::Object(Map::new())),
+            prefill: inv
+                .prefill
+                .as_ref()
+                .map(|m| Value::Object(m.clone()))
                 .unwrap_or(Value::Object(Map::new())),
         }
     }
@@ -324,6 +334,7 @@ impl BindingContext {
             "session" => attempt_root(&self.session, segments),
             "state" => attempt_root(&self.state, segments),
             "params" | "template" => attempt_root(&self.template_params, segments),
+            "prefill" => attempt_root(&self.prefill, segments),
             _ => lookup_in(
                 &self.payload,
                 normalize_path(&path)
@@ -579,6 +590,39 @@ fn apply_bindings(
         }
         _ => Ok(()),
     }
+}
+
+/// Walk the card body recursively and set `"value"` on `Input.*` elements
+/// whose `"id"` matches a key in `prefill`.
+fn apply_prefill(card: &mut Value, prefill: &Map<String, Value>) {
+    fn walk(value: &mut Value, prefill: &Map<String, Value>) {
+        match value {
+            Value::Object(map) => {
+                if map
+                    .get("type")
+                    .and_then(|v| v.as_str())
+                    .is_some_and(|t| t.starts_with("Input."))
+                    && let Some(id) = map.get("id").and_then(|v| v.as_str()).map(|s| s.to_owned())
+                    && let Some(fill_value) = prefill.get(&id)
+                {
+                    map.insert("value".to_string(), fill_value.clone());
+                }
+                // Recurse into containers: body, items, columns, actions, card
+                for key in ["body", "items", "columns", "actions", "card"] {
+                    if let Some(child) = map.get_mut(key) {
+                        walk(child, prefill);
+                    }
+                }
+            }
+            Value::Array(items) => {
+                for item in items {
+                    walk(item, prefill);
+                }
+            }
+            _ => {}
+        }
+    }
+    walk(card, prefill);
 }
 
 fn apply_handlebars(

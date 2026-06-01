@@ -299,15 +299,30 @@ fn decode_cbor<T: for<'de> serde::Deserialize<'de>>(bytes: &[u8]) -> Result<T, C
 
 fn input_schema_ir() -> SchemaIr {
     SchemaIr::Object {
-        properties: BTreeMap::from([(
-            "input".to_string(),
-            SchemaIr::String {
-                min_len: Some(0),
-                max_len: Some(8192),
-                regex: None,
-                format: None,
-            },
-        )]),
+        properties: BTreeMap::from([
+            (
+                "input".to_string(),
+                SchemaIr::String {
+                    min_len: Some(0),
+                    max_len: Some(8192),
+                    regex: None,
+                    format: None,
+                },
+            ),
+            (
+                "prefill".to_string(),
+                SchemaIr::OneOf {
+                    variants: vec![
+                        SchemaIr::Object {
+                            properties: BTreeMap::new(),
+                            required: Vec::new(),
+                            additional: AdditionalProperties::Allow,
+                        },
+                        SchemaIr::Null,
+                    ],
+                },
+            ),
+        ]),
         required: vec!["input".to_string()],
         additional: AdditionalProperties::Forbid,
     }

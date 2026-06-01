@@ -278,6 +278,7 @@ mod tests {
             interaction: None,
             mode: InvocationMode::RenderAndValidate,
             validation_mode: ValidationMode::Warn,
+            prefill: None,
             envelope: None,
         }
     }

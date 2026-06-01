@@ -32,6 +32,7 @@ fn base_invocation(card: serde_json::Value) -> AdaptiveCardInvocation {
         interaction: None,
         mode: InvocationMode::RenderAndValidate,
         validation_mode: ValidationMode::Warn,
+        prefill: None,
         envelope: None,
     }
 }
@@ -215,6 +216,7 @@ fn asset_render_loads_card() {
         interaction: None,
         mode: InvocationMode::RenderAndValidate,
         validation_mode: ValidationMode::Warn,
+        prefill: None,
         envelope: None,
     };
 
@@ -257,6 +259,7 @@ fn catalog_resolution_uses_env_mapping() {
         interaction: None,
         mode: InvocationMode::RenderAndValidate,
         validation_mode: ValidationMode::Warn,
+        prefill: None,
         envelope: None,
     };
 
@@ -482,6 +485,7 @@ fn host_asset_registry_resolves_assets() {
         interaction: None,
         mode: InvocationMode::RenderAndValidate,
         validation_mode: ValidationMode::Warn,
+        prefill: None,
         envelope: None,
     };
 
@@ -710,4 +714,145 @@ fn runtime_errors_emit_msg_key_and_localized_message() {
     let parsed: serde_json::Value = serde_json::from_str(&output).expect("error payload");
     assert_eq!(parsed["error"]["msg_key"], "errors.invalid_input");
     assert_eq!(parsed["error"]["message"], "Invalid input (UK)");
+}
+
+// --- M2.3 prefill tests ---
+
+#[test]
+fn prefill_sets_input_values() {
+    let card = json!({
+        "type": "AdaptiveCard",
+        "version": "1.6",
+        "body": [
+            { "type": "Input.Text", "id": "name", "placeholder": "Name" }
+        ]
+    });
+    let mut invocation = base_invocation(card);
+    let mut prefill_map = serde_json::Map::new();
+    prefill_map.insert("name".to_string(), json!("Ada"));
+    invocation.prefill = Some(prefill_map);
+
+    let result = handle_invocation(invocation).expect("render with prefill");
+    let rendered = result.rendered_card.expect("card should render");
+    assert_eq!(rendered["body"][0]["value"], "Ada");
+}
+
+#[test]
+fn prefill_ignores_unknown_ids() {
+    let card = json!({
+        "type": "AdaptiveCard",
+        "version": "1.6",
+        "body": [
+            { "type": "Input.Text", "id": "name", "placeholder": "Name" }
+        ]
+    });
+    let mut invocation = base_invocation(card);
+    let mut prefill_map = serde_json::Map::new();
+    prefill_map.insert("unknown_field".to_string(), json!("ignored"));
+    invocation.prefill = Some(prefill_map);
+
+    let result = handle_invocation(invocation).expect("render with unknown prefill key");
+    let rendered = result.rendered_card.expect("card should render");
+    // The input should not have a value set
+    assert!(rendered["body"][0].get("value").is_none());
+}
+
+#[test]
+fn prefill_none_is_backward_compatible() {
+    // JSON without a `prefill` field should deserialize cleanly
+    let json_str = r#"{
+        "card_source": "inline",
+        "card_spec": {
+            "inline_json": {
+                "type": "AdaptiveCard",
+                "version": "1.6",
+                "body": [{ "type": "TextBlock", "text": "Hello" }]
+            }
+        }
+    }"#;
+    let inv: AdaptiveCardInvocation = serde_json::from_str(json_str).expect("deserialize");
+    assert_eq!(inv.prefill, None);
+}
+
+#[test]
+fn prefill_skipped_in_serialization_when_none() {
+    let invocation = base_invocation(json!({
+        "type": "AdaptiveCard",
+        "version": "1.6",
+        "body": []
+    }));
+    let serialized = serde_json::to_value(&invocation).expect("serialize");
+    assert!(
+        serialized.get("prefill").is_none(),
+        "prefill should be absent from serialized output when None"
+    );
+}
+
+#[test]
+fn prefill_overridden_by_interaction_inputs() {
+    let card = json!({
+        "type": "AdaptiveCard",
+        "version": "1.6",
+        "body": [
+            { "type": "Input.Text", "id": "comment" }
+        ]
+    });
+    let mut invocation = base_invocation(card);
+    let mut prefill_map = serde_json::Map::new();
+    prefill_map.insert("comment".to_string(), json!("prefilled"));
+    invocation.prefill = Some(prefill_map);
+    invocation.interaction = Some(CardInteraction {
+        enabled: None,
+        interaction_type: CardInteractionType::Submit,
+        action_id: "submit-1".to_string(),
+        verb: None,
+        raw_inputs: json!({ "comment": "user typed this" }),
+        card_instance_id: "card-1".to_string(),
+        metadata: json!({}),
+    });
+
+    let result = handle_invocation(invocation).expect("interaction with prefill");
+    let event = result.event.expect("event should exist");
+    // Interaction raw_inputs are what the user actually submitted — they win
+    assert_eq!(event.inputs["comment"], "user typed this");
+}
+
+#[test]
+fn prefill_namespace_resolves_in_at_bindings() {
+    let card = json!({
+        "type": "AdaptiveCard",
+        "version": "1.6",
+        "body": [
+            { "type": "TextBlock", "text": "Hello @{prefill.userName}" }
+        ]
+    });
+    let mut invocation = base_invocation(card);
+    let mut prefill_map = serde_json::Map::new();
+    prefill_map.insert("userName".to_string(), json!("Ada"));
+    invocation.prefill = Some(prefill_map);
+
+    let result = handle_invocation(invocation).expect("render with prefill binding");
+    let rendered = result.rendered_card.expect("card should render");
+    let text = rendered["body"][0]["text"].as_str().expect("text string");
+    assert_eq!(text, "Hello Ada");
+}
+
+#[test]
+fn prefill_namespace_resolves_in_dollar_bindings() {
+    let card = json!({
+        "type": "AdaptiveCard",
+        "version": "1.6",
+        "body": [
+            { "type": "TextBlock", "text": "${prefill.userName}" }
+        ]
+    });
+    let mut invocation = base_invocation(card);
+    let mut prefill_map = serde_json::Map::new();
+    prefill_map.insert("userName".to_string(), json!("Ada"));
+    invocation.prefill = Some(prefill_map);
+
+    let result = handle_invocation(invocation).expect("render with dollar prefill binding");
+    let rendered = result.rendered_card.expect("card should render");
+    let text = rendered["body"][0]["text"].as_str().expect("text string");
+    assert_eq!(text, "Ada");
 }

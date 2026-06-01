@@ -89,6 +89,11 @@ pub struct AdaptiveCardInvocation {
     #[serde(alias = "validation_mode")]
     pub validation_mode: ValidationMode,
 
+    /// Pre-filled values for Adaptive Card input fields, keyed by input `id`.
+    /// Supplied by upstream slot extraction; absent on legacy invocations.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prefill: Option<serde_json::Map<String, serde_json::Value>>,
+
     /// Optional shared invocation envelope metadata from the host.
     #[serde(default)]
     #[serde(
@@ -110,6 +115,7 @@ impl PartialEq for AdaptiveCardInvocation {
             && self.interaction == other.interaction
             && self.mode == other.mode
             && self.validation_mode == other.validation_mode
+            && self.prefill == other.prefill
             && canonical_envelope_eq(&self.envelope, &other.envelope)
     }
 }

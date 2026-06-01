@@ -90,6 +90,11 @@
     },
     "envelope": {
       "type": "object"
+    },
+    "prefill": {
+      "type": ["object", "null"],
+      "additionalProperties": true,
+      "description": "Pre-filled values for Input.* fields, keyed by input id."
     }
   }
 }

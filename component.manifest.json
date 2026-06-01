@@ -413,6 +413,11 @@
             "enum": ["off", "warn", "error"],
             "default": "warn",
             "description": "Per-call override for invocation schema validation issues."
+          },
+          "prefill": {
+            "type": ["object", "null"],
+            "additionalProperties": true,
+            "description": "Pre-filled values for Input.* fields, keyed by input id."
           }
         }
       },
