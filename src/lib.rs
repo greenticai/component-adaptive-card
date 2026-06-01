@@ -299,15 +299,30 @@ fn decode_cbor<T: for<'de> serde::Deserialize<'de>>(bytes: &[u8]) -> Result<T, C
 
 fn input_schema_ir() -> SchemaIr {
     SchemaIr::Object {
-        properties: BTreeMap::from([(
-            "input".to_string(),
-            SchemaIr::String {
-                min_len: Some(0),
-                max_len: Some(8192),
-                regex: None,
-                format: None,
-            },
-        )]),
+        properties: BTreeMap::from([
+            (
+                "input".to_string(),
+                SchemaIr::String {
+                    min_len: Some(0),
+                    max_len: Some(8192),
+                    regex: None,
+                    format: None,
+                },
+            ),
+            (
+                "prefill".to_string(),
+                SchemaIr::OneOf {
+                    variants: vec![
+                        SchemaIr::Object {
+                            properties: BTreeMap::new(),
+                            required: Vec::new(),
+                            additional: AdditionalProperties::Allow,
+                        },
+                        SchemaIr::Null,
+                    ],
+                },
+            ),
+        ]),
         required: vec!["input".to_string()],
         additional: AdditionalProperties::Forbid,
     }
@@ -1401,14 +1416,38 @@ struct InvocationEnvelope {
     #[serde(default)]
     #[serde(deserialize_with = "model::deserialize_canonical_invocation_envelope_opt")]
     envelope: Option<CanonicalInvocationEnvelope>,
+    #[serde(default)]
+    prefill: Option<serde_json::Map<String, serde_json::Value>>,
+}
+
+/// Merge an envelope-level `prefill` map into the invocation. Inner-wins:
+/// values already set on `inv.prefill` are preserved; the envelope only
+/// supplies a value when the inner invocation declared none. Consolidates
+/// the four parse paths in `parse_invocation_value` / `merge_envelope` /
+/// `merge_envelope_struct` so the merge rule lives in one place.
+fn apply_envelope_prefill(
+    inv: &mut AdaptiveCardInvocation,
+    envelope_prefill: Option<serde_json::Map<String, serde_json::Value>>,
+) {
+    if inv.prefill.is_none() {
+        inv.prefill = envelope_prefill;
+    }
+}
+
+fn extract_envelope_prefill(
+    value: &serde_json::Value,
+) -> Option<serde_json::Map<String, serde_json::Value>> {
+    value.get("prefill").and_then(|v| v.as_object()).cloned()
 }
 
 fn parse_invocation_value(
     value: &serde_json::Value,
 ) -> Result<AdaptiveCardInvocation, ComponentError> {
     if let Some(invocation_value) = validation::locate_invocation_candidate(value) {
-        return serde_json::from_value::<AdaptiveCardInvocation>(invocation_value)
-            .map_err(ComponentError::Serde);
+        let mut inv: AdaptiveCardInvocation =
+            serde_json::from_value(invocation_value).map_err(ComponentError::Serde)?;
+        apply_envelope_prefill(&mut inv, extract_envelope_prefill(value));
+        return Ok(inv);
     }
 
     if let Some(inner) = value.get("config") {
@@ -1426,9 +1465,10 @@ fn parse_invocation_value(
 
     let mut env: InvocationEnvelope = serde_json::from_value(value.clone())?;
     if env.config.is_none()
-        && let Ok(invocation) =
+        && let Ok(mut invocation) =
             serde_json::from_value::<AdaptiveCardInvocation>(env.payload.clone())
     {
+        apply_envelope_prefill(&mut invocation, env.prefill.take());
         return Ok(invocation);
     }
     let config = env
@@ -1496,6 +1536,7 @@ fn merge_envelope(
     if let Some(envelope) = env.get("envelope") {
         inv.envelope = model::parse_canonical_invocation_envelope(envelope.clone());
     }
+    apply_envelope_prefill(&mut inv, extract_envelope_prefill(&env));
     Ok(inv)
 }
 
@@ -1537,6 +1578,7 @@ fn merge_envelope_struct(
     if env.envelope.is_some() {
         inv.envelope = env.envelope;
     }
+    apply_envelope_prefill(&mut inv, env.prefill);
     inv
 }
 

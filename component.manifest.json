@@ -276,7 +276,7 @@
     }
   },
   "hashes": {
-    "component_wasm": "blake3:26a377c55f64f1a22bd70701e049ff2f3ef42e7f22d36954ddd38b37bc6a05b3"
+    "component_wasm": "blake3:46dd49071a9a476a8d7a5b092346bfb77691cf0706d08dba53df5edcf99f77fb"
   },
   "id": "ai.greentic.component-adaptive-card",
   "limits": {
@@ -413,6 +413,11 @@
             "enum": ["off", "warn", "error"],
             "default": "warn",
             "description": "Per-call override for invocation schema validation issues."
+          },
+          "prefill": {
+            "type": ["object", "null"],
+            "additionalProperties": true,
+            "description": "Pre-filled values for Input.* fields, keyed by input id."
           }
         }
       },

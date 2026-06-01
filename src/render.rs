@@ -59,6 +59,10 @@ pub fn render_card(
         inv.validation_mode.clone(),
     )?;
 
+    if let Some(prefill) = inv.prefill.as_ref() {
+        apply_prefill(&mut card, prefill);
+    }
+
     let features = analyze_features(&card);
     let validation_issues = validate_card(&card, &locale);
 
@@ -297,6 +301,7 @@ pub struct BindingContext {
     session: Value,
     state: Value,
     template_params: Value,
+    prefill: Value,
 }
 
 impl BindingContext {
@@ -309,6 +314,11 @@ impl BindingContext {
                 .card_spec
                 .template_params
                 .clone()
+                .unwrap_or(Value::Object(Map::new())),
+            prefill: inv
+                .prefill
+                .as_ref()
+                .map(|m| Value::Object(m.clone()))
                 .unwrap_or(Value::Object(Map::new())),
         }
     }
@@ -324,6 +334,7 @@ impl BindingContext {
             "session" => attempt_root(&self.session, segments),
             "state" => attempt_root(&self.state, segments),
             "params" | "template" => attempt_root(&self.template_params, segments),
+            "prefill" => attempt_root(&self.prefill, segments),
             _ => lookup_in(
                 &self.payload,
                 normalize_path(&path)
@@ -579,6 +590,78 @@ fn apply_bindings(
         }
         _ => Ok(()),
     }
+}
+
+/// Coerce a prefill value to a shape compatible with the given Input type.
+/// Returns `None` when the value cannot be meaningfully coerced (skip that field).
+fn coerce_prefill_value(input_type: &str, value: &Value) -> Option<Value> {
+    match input_type {
+        "Input.Text" | "Input.ChoiceSet" | "Input.Date" | "Input.Time" => {
+            // Stringify primitives; skip objects/arrays/null.
+            match value {
+                Value::String(_) => Some(value.clone()),
+                Value::Number(n) => Some(Value::String(n.to_string())),
+                Value::Bool(b) => Some(Value::String(b.to_string())),
+                Value::Null | Value::Object(_) | Value::Array(_) => None,
+            }
+        }
+        "Input.Number" => {
+            // Accept numbers; accept numeric strings; reject anything else.
+            match value {
+                Value::Number(_) => Some(value.clone()),
+                Value::String(s) if s.parse::<f64>().is_ok() => Some(value.clone()),
+                _ => None,
+            }
+        }
+        "Input.Toggle" => {
+            // Toggle's `value` is a string; coerce bools to "true"/"false",
+            // accept strings as-is, reject the rest.
+            match value {
+                Value::Bool(b) => Some(Value::String(b.to_string())),
+                Value::String(_) => Some(value.clone()),
+                _ => None,
+            }
+        }
+        _ => Some(value.clone()), // Unknown Input.* — pass through (forward-compat)
+    }
+}
+
+/// Walk the card body recursively and set `"value"` on `Input.*` elements
+/// whose `"id"` matches a key in `prefill`.
+fn apply_prefill(card: &mut Value, prefill: &Map<String, Value>) {
+    fn walk(value: &mut Value, prefill: &Map<String, Value>) {
+        match value {
+            Value::Object(map) => {
+                // Collect the coerced value with all map borrows confined to the
+                // match scrutinee so the subsequent `map.insert` is unblocked.
+                let coerced = match (
+                    map.get("type").and_then(Value::as_str),
+                    map.get("id").and_then(Value::as_str),
+                ) {
+                    (Some(input_type), Some(id)) if input_type.starts_with("Input.") => prefill
+                        .get(id)
+                        .and_then(|v| coerce_prefill_value(input_type, v)),
+                    _ => None,
+                };
+                if let Some(value) = coerced {
+                    map.insert("value".to_string(), value);
+                }
+                // Recurse into containers: body, items, columns, actions, card
+                for key in ["body", "items", "columns", "actions", "card"] {
+                    if let Some(child) = map.get_mut(key) {
+                        walk(child, prefill);
+                    }
+                }
+            }
+            Value::Array(items) => {
+                for item in items {
+                    walk(item, prefill);
+                }
+            }
+            _ => {}
+        }
+    }
+    walk(card, prefill);
 }
 
 fn apply_handlebars(
