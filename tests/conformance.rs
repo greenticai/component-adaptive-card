@@ -856,3 +856,162 @@ fn prefill_namespace_resolves_in_dollar_bindings() {
     let text = rendered["body"][0]["text"].as_str().expect("text string");
     assert_eq!(text, "Ada");
 }
+
+// --- M2.3 Finding #2: envelope top-level prefill merging ---
+
+#[test]
+fn wrapper_envelope_top_level_prefill_is_merged() {
+    let input = json!({
+        "payload": {
+            "card_source": "inline",
+            "card_spec": {
+                "inline_json": {
+                    "type": "AdaptiveCard",
+                    "version": "1.6",
+                    "body": [
+                        { "type": "Input.Text", "id": "user", "placeholder": "User" }
+                    ]
+                }
+            },
+            "mode": "render"
+        },
+        "prefill": { "user": "Ada" }
+    });
+    let input_str = serde_json::to_string(&input).unwrap();
+    let output = component_adaptive_card::handle_message("card", &input_str);
+    let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
+    assert!(parsed.get("error").is_none(), "unexpected error: {parsed}");
+    let rendered = parsed["renderedCard"].as_object().expect("renderedCard");
+    assert_eq!(rendered["body"][0]["value"], "Ada");
+}
+
+#[test]
+fn inner_invocation_prefill_wins_over_envelope_prefill() {
+    let input = json!({
+        "payload": {
+            "card_source": "inline",
+            "card_spec": {
+                "inline_json": {
+                    "type": "AdaptiveCard",
+                    "version": "1.6",
+                    "body": [
+                        { "type": "Input.Text", "id": "a", "placeholder": "A" }
+                    ]
+                }
+            },
+            "prefill": { "a": "inner" },
+            "mode": "render"
+        },
+        "prefill": { "a": "outer" }
+    });
+    let input_str = serde_json::to_string(&input).unwrap();
+    let output = component_adaptive_card::handle_message("card", &input_str);
+    let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
+    assert!(parsed.get("error").is_none(), "unexpected error: {parsed}");
+    let rendered = parsed["renderedCard"].as_object().expect("renderedCard");
+    assert_eq!(rendered["body"][0]["value"], "inner");
+}
+
+#[test]
+fn wrapper_envelope_no_prefill_field_still_works() {
+    let input = json!({
+        "payload": {
+            "card_source": "inline",
+            "card_spec": {
+                "inline_json": {
+                    "type": "AdaptiveCard",
+                    "version": "1.6",
+                    "body": [
+                        { "type": "Input.Text", "id": "name", "placeholder": "Name" }
+                    ]
+                }
+            },
+            "mode": "render"
+        }
+    });
+    let input_str = serde_json::to_string(&input).unwrap();
+    let output = component_adaptive_card::handle_message("card", &input_str);
+    let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
+    assert!(parsed.get("error").is_none(), "unexpected error: {parsed}");
+    let rendered = parsed["renderedCard"].as_object().expect("renderedCard");
+    // No value should be set on the input
+    assert!(rendered["body"][0].get("value").is_none());
+}
+
+// --- M2.3 Finding #4: prefill value coercion ---
+
+#[test]
+fn prefill_coerces_number_to_string_for_input_text() {
+    let card = json!({
+        "type": "AdaptiveCard",
+        "version": "1.6",
+        "body": [
+            { "type": "Input.Text", "id": "amount", "placeholder": "Amount" }
+        ]
+    });
+    let mut invocation = base_invocation(card);
+    let mut prefill_map = serde_json::Map::new();
+    prefill_map.insert("amount".to_string(), json!(42));
+    invocation.prefill = Some(prefill_map);
+
+    let result = handle_invocation(invocation).expect("render");
+    let rendered = result.rendered_card.expect("card should render");
+    assert_eq!(rendered["body"][0]["value"], "42");
+}
+
+#[test]
+fn prefill_skips_object_value_on_input_text() {
+    let card = json!({
+        "type": "AdaptiveCard",
+        "version": "1.6",
+        "body": [
+            { "type": "Input.Text", "id": "name", "placeholder": "Name" }
+        ]
+    });
+    let mut invocation = base_invocation(card);
+    let mut prefill_map = serde_json::Map::new();
+    prefill_map.insert("name".to_string(), json!({"first": "Ada"}));
+    invocation.prefill = Some(prefill_map);
+
+    let result = handle_invocation(invocation).expect("render");
+    let rendered = result.rendered_card.expect("card should render");
+    assert!(rendered["body"][0].get("value").is_none());
+}
+
+#[test]
+fn prefill_coerces_bool_to_string_for_input_toggle() {
+    let card = json!({
+        "type": "AdaptiveCard",
+        "version": "1.6",
+        "body": [
+            { "type": "Input.Toggle", "id": "agreed", "title": "Agree?" }
+        ]
+    });
+    let mut invocation = base_invocation(card);
+    let mut prefill_map = serde_json::Map::new();
+    prefill_map.insert("agreed".to_string(), json!(true));
+    invocation.prefill = Some(prefill_map);
+
+    let result = handle_invocation(invocation).expect("render");
+    let rendered = result.rendered_card.expect("card should render");
+    assert_eq!(rendered["body"][0]["value"], "true");
+}
+
+#[test]
+fn prefill_preserves_number_for_input_number() {
+    let card = json!({
+        "type": "AdaptiveCard",
+        "version": "1.6",
+        "body": [
+            { "type": "Input.Number", "id": "qty", "placeholder": "Qty" }
+        ]
+    });
+    let mut invocation = base_invocation(card);
+    let mut prefill_map = serde_json::Map::new();
+    prefill_map.insert("qty".to_string(), json!(7));
+    invocation.prefill = Some(prefill_map);
+
+    let result = handle_invocation(invocation).expect("render");
+    let rendered = result.rendered_card.expect("card should render");
+    assert_eq!(rendered["body"][0]["value"], 7);
+}

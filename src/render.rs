@@ -592,20 +592,57 @@ fn apply_bindings(
     }
 }
 
+/// Coerce a prefill value to a shape compatible with the given Input type.
+/// Returns `None` when the value cannot be meaningfully coerced (skip that field).
+fn coerce_prefill_value(input_type: &str, value: &Value) -> Option<Value> {
+    match input_type {
+        "Input.Text" | "Input.ChoiceSet" | "Input.Date" | "Input.Time" => {
+            // Stringify primitives; skip objects/arrays/null.
+            match value {
+                Value::String(_) => Some(value.clone()),
+                Value::Number(n) => Some(Value::String(n.to_string())),
+                Value::Bool(b) => Some(Value::String(b.to_string())),
+                Value::Null | Value::Object(_) | Value::Array(_) => None,
+            }
+        }
+        "Input.Number" => {
+            // Accept numbers; accept numeric strings; reject anything else.
+            match value {
+                Value::Number(_) => Some(value.clone()),
+                Value::String(s) if s.parse::<f64>().is_ok() => Some(value.clone()),
+                _ => None,
+            }
+        }
+        "Input.Toggle" => {
+            // Toggle's `value` is a string; coerce bools to "true"/"false",
+            // accept strings as-is, reject the rest.
+            match value {
+                Value::Bool(b) => Some(Value::String(b.to_string())),
+                Value::String(_) => Some(value.clone()),
+                _ => None,
+            }
+        }
+        _ => Some(value.clone()), // Unknown Input.* — pass through (forward-compat)
+    }
+}
+
 /// Walk the card body recursively and set `"value"` on `Input.*` elements
 /// whose `"id"` matches a key in `prefill`.
 fn apply_prefill(card: &mut Value, prefill: &Map<String, Value>) {
     fn walk(value: &mut Value, prefill: &Map<String, Value>) {
         match value {
             Value::Object(map) => {
-                if map
+                let input_type = map
                     .get("type")
                     .and_then(|v| v.as_str())
-                    .is_some_and(|t| t.starts_with("Input."))
+                    .unwrap_or_default()
+                    .to_string();
+                if input_type.starts_with("Input.")
                     && let Some(id) = map.get("id").and_then(|v| v.as_str()).map(|s| s.to_owned())
                     && let Some(fill_value) = prefill.get(&id)
+                    && let Some(coerced) = coerce_prefill_value(&input_type, fill_value)
                 {
-                    map.insert("value".to_string(), fill_value.clone());
+                    map.insert("value".to_string(), coerced);
                 }
                 // Recurse into containers: body, items, columns, actions, card
                 for key in ["body", "items", "columns", "actions", "card"] {
