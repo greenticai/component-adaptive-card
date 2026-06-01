@@ -632,17 +632,19 @@ fn apply_prefill(card: &mut Value, prefill: &Map<String, Value>) {
     fn walk(value: &mut Value, prefill: &Map<String, Value>) {
         match value {
             Value::Object(map) => {
-                let input_type = map
-                    .get("type")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or_default()
-                    .to_string();
-                if input_type.starts_with("Input.")
-                    && let Some(id) = map.get("id").and_then(|v| v.as_str()).map(|s| s.to_owned())
-                    && let Some(fill_value) = prefill.get(&id)
-                    && let Some(coerced) = coerce_prefill_value(&input_type, fill_value)
-                {
-                    map.insert("value".to_string(), coerced);
+                // Collect the coerced value with all map borrows confined to the
+                // match scrutinee so the subsequent `map.insert` is unblocked.
+                let coerced = match (
+                    map.get("type").and_then(Value::as_str),
+                    map.get("id").and_then(Value::as_str),
+                ) {
+                    (Some(input_type), Some(id)) if input_type.starts_with("Input.") => prefill
+                        .get(id)
+                        .and_then(|v| coerce_prefill_value(input_type, v)),
+                    _ => None,
+                };
+                if let Some(value) = coerced {
+                    map.insert("value".to_string(), value);
                 }
                 // Recurse into containers: body, items, columns, actions, card
                 for key in ["body", "items", "columns", "actions", "card"] {

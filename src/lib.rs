@@ -1420,19 +1420,33 @@ struct InvocationEnvelope {
     prefill: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
+/// Merge an envelope-level `prefill` map into the invocation. Inner-wins:
+/// values already set on `inv.prefill` are preserved; the envelope only
+/// supplies a value when the inner invocation declared none. Consolidates
+/// the four parse paths in `parse_invocation_value` / `merge_envelope` /
+/// `merge_envelope_struct` so the merge rule lives in one place.
+fn apply_envelope_prefill(
+    inv: &mut AdaptiveCardInvocation,
+    envelope_prefill: Option<serde_json::Map<String, serde_json::Value>>,
+) {
+    if inv.prefill.is_none() {
+        inv.prefill = envelope_prefill;
+    }
+}
+
+fn extract_envelope_prefill(
+    value: &serde_json::Value,
+) -> Option<serde_json::Map<String, serde_json::Value>> {
+    value.get("prefill").and_then(|v| v.as_object()).cloned()
+}
+
 fn parse_invocation_value(
     value: &serde_json::Value,
 ) -> Result<AdaptiveCardInvocation, ComponentError> {
     if let Some(invocation_value) = validation::locate_invocation_candidate(value) {
         let mut inv: AdaptiveCardInvocation =
             serde_json::from_value(invocation_value).map_err(ComponentError::Serde)?;
-        // Merge top-level envelope prefill (inner wins).
-        if inv.prefill.is_none()
-            && let Some(prefill_val) = value.get("prefill")
-            && let Some(prefill_map) = prefill_val.as_object()
-        {
-            inv.prefill = Some(prefill_map.clone());
-        }
+        apply_envelope_prefill(&mut inv, extract_envelope_prefill(value));
         return Ok(inv);
     }
 
@@ -1454,9 +1468,7 @@ fn parse_invocation_value(
         && let Ok(mut invocation) =
             serde_json::from_value::<AdaptiveCardInvocation>(env.payload.clone())
     {
-        if invocation.prefill.is_none() && env.prefill.is_some() {
-            invocation.prefill = env.prefill;
-        }
+        apply_envelope_prefill(&mut invocation, env.prefill.take());
         return Ok(invocation);
     }
     let config = env
@@ -1524,12 +1536,7 @@ fn merge_envelope(
     if let Some(envelope) = env.get("envelope") {
         inv.envelope = model::parse_canonical_invocation_envelope(envelope.clone());
     }
-    if inv.prefill.is_none()
-        && let Some(prefill_val) = env.get("prefill")
-        && let Some(prefill_map) = prefill_val.as_object()
-    {
-        inv.prefill = Some(prefill_map.clone());
-    }
+    apply_envelope_prefill(&mut inv, extract_envelope_prefill(&env));
     Ok(inv)
 }
 
@@ -1571,9 +1578,7 @@ fn merge_envelope_struct(
     if env.envelope.is_some() {
         inv.envelope = env.envelope;
     }
-    if inv.prefill.is_none() && env.prefill.is_some() {
-        inv.prefill = env.prefill;
-    }
+    apply_envelope_prefill(&mut inv, env.prefill);
     inv
 }
 

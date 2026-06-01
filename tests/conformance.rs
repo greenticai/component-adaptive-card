@@ -1,7 +1,6 @@
 use component_adaptive_card::{
     AdaptiveCardInvocation, CanonicalInvocationEnvelope, CardInteraction, CardInteractionType,
-    CardSource, CardSpec, InvocationMode, ValidationMode, handle_invocation,
-    register_host_asset_callback,
+    CardSource, CardSpec, handle_invocation, register_host_asset_callback,
 };
 use serde_json::json;
 #[cfg(not(target_arch = "wasm32"))]
@@ -17,23 +16,12 @@ fn base_invocation(card: serde_json::Value) -> AdaptiveCardInvocation {
         card_source: CardSource::Inline,
         card_spec: CardSpec {
             inline_json: Some(card),
-            asset_path: None,
-            catalog_name: None,
-            template_params: None,
-            asset_registry: None,
-            i18n_bundle_path: None,
-            i18n_inline: None,
+            ..Default::default()
         },
-        node_id: None,
-        locale: None,
         payload: json!({}),
         session: json!({}),
         state: json!({}),
-        interaction: None,
-        mode: InvocationMode::RenderAndValidate,
-        validation_mode: ValidationMode::Warn,
-        prefill: None,
-        envelope: None,
+        ..Default::default()
     }
 }
 
@@ -208,16 +196,10 @@ fn asset_render_loads_card() {
     let invocation = AdaptiveCardInvocation {
         card_source: CardSource::Asset,
         card_spec: spec,
-        node_id: None,
-        locale: None,
         payload: json!({}),
         session: json!({}),
         state: json!({}),
-        interaction: None,
-        mode: InvocationMode::RenderAndValidate,
-        validation_mode: ValidationMode::Warn,
-        prefill: None,
-        envelope: None,
+        ..Default::default()
     };
 
     let result = handle_invocation(invocation).expect("asset render");
@@ -251,16 +233,10 @@ fn catalog_resolution_uses_env_mapping() {
             asset_registry: None,
             ..Default::default()
         },
-        node_id: None,
-        locale: None,
         payload: json!({}),
         session: json!({}),
         state: json!({}),
-        interaction: None,
-        mode: InvocationMode::RenderAndValidate,
-        validation_mode: ValidationMode::Warn,
-        prefill: None,
-        envelope: None,
+        ..Default::default()
     };
 
     let result = handle_invocation(invocation).expect("catalog render");
@@ -477,16 +453,10 @@ fn host_asset_registry_resolves_assets() {
             asset_path: Some("host-card".to_string()),
             ..Default::default()
         },
-        node_id: None,
-        locale: None,
         payload: json!({}),
         session: json!({}),
         state: json!({}),
-        interaction: None,
-        mode: InvocationMode::RenderAndValidate,
-        validation_mode: ValidationMode::Warn,
-        prefill: None,
-        envelope: None,
+        ..Default::default()
     };
 
     let result = handle_invocation(invocation).expect("host registry");
