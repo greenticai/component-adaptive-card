@@ -711,3 +711,51 @@ fn runtime_errors_emit_msg_key_and_localized_message() {
     assert_eq!(parsed["error"]["msg_key"], "errors.invalid_input");
     assert_eq!(parsed["error"]["message"], "Invalid input (UK)");
 }
+
+// Mirrors the runtime path for a designer-produced pack: the host reads the
+// pack's `assets/i18n/<lang>.json` files (whose keys are designer-generated,
+// e.g. `card.welcome.body_0.text`) and inlines them into
+// `card_spec.i18n_inline`, while the conversation locale arrives on the
+// invocation. The component must substitute the `{{i18n:KEY}}` markers with
+// the selected locale's translation, not the English source.
+#[test]
+fn i18n_inline_pack_keys_render_designer_marker_in_selected_locale() {
+    let card = json!({
+        "type": "AdaptiveCard",
+        "version": "1.6",
+        "body": [
+            { "type": "TextBlock", "text": "{{i18n:card.welcome.body_0.text}}" }
+        ],
+        "actions": [
+            { "type": "Action.Submit", "title": "{{i18n:card.welcome.actions_0.title}}", "id": "go" }
+        ]
+    });
+    let mut invocation = base_invocation(card);
+    // The conversation locale, as the runtime injects it from envelope metadata.
+    invocation.locale = Some("id".to_string());
+    // The pre-resolved bundles the runtime inlines from the pack's
+    // `assets/i18n/{en,id}.json` (designer keys -> translated values).
+    invocation.card_spec.i18n_inline = Some(std::collections::BTreeMap::from([
+        (
+            "en".to_string(),
+            json!({
+                "card.welcome.body_0.text": "Welcome to support",
+                "card.welcome.actions_0.title": "Continue"
+            }),
+        ),
+        (
+            "id".to_string(),
+            json!({
+                "card.welcome.body_0.text": "Selamat datang di dukungan",
+                "card.welcome.actions_0.title": "Lanjutkan"
+            }),
+        ),
+    ]));
+
+    let result = handle_invocation(invocation).expect("render should succeed");
+    let rendered = result.rendered_card.expect("card should render");
+
+    // The Indonesian translations replace the markers; no English leaks through.
+    assert_eq!(rendered["body"][0]["text"], "Selamat datang di dukungan");
+    assert_eq!(rendered["actions"][0]["title"], "Lanjutkan");
+}
