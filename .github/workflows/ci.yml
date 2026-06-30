@@ -43,8 +43,8 @@ jobs:
         run: echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
       - name: Install Greentic CLIs and wasm-tools
         run: |
-          cargo binstall -y greentic-dev greentic-flow greentic-integration-tester
-          cargo binstall -y greentic-component --force
+          cargo binstall -y greentic-dev greentic-flow greentic-integration-tester --locked --force
+          cargo binstall -y greentic-component --force --locked
           cargo binstall -y wasm-tools --force
       - name: Verify installed CLIs
         run: |
