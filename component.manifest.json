@@ -522,6 +522,6 @@
     "supported": ["stateless"]
   },
   "supports": ["messaging"],
-  "version": "0.2.0",
+  "version": "0.2.2",
   "world": "greentic:component/component-v0-v6-v0@0.6.0"
 }
