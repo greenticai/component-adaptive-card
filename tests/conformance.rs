@@ -1,6 +1,6 @@
 use component_adaptive_card::{
     AdaptiveCardInvocation, CanonicalInvocationEnvelope, CardInteraction, CardInteractionType,
-    CardSource, CardSpec, handle_invocation, register_host_asset_callback,
+    CardSource, CardSpec, ValidationMode, handle_invocation, register_host_asset_callback,
 };
 use serde_json::json;
 #[cfg(not(target_arch = "wasm32"))]
@@ -984,4 +984,303 @@ fn prefill_preserves_number_for_input_number() {
     let result = handle_invocation(invocation).expect("render");
     let rendered = result.rendered_card.expect("card should render");
     assert_eq!(rendered["body"][0]["value"], 7);
+}
+
+fn zain_throughput_payload(outcome: &str) -> serde_json::Value {
+    json!({
+        "query_type": "throughput",
+        "outcome": outcome,
+        "summary": {
+            "template_id": format!("throughput_by_prefix_{outcome}"),
+            "fields": {
+                "prefix": "203.0.113.0/24",
+                "direction": "inbound",
+                "time_range": "last day",
+                "total_avg_gbps": 1.65,
+                "total_p95_gbps": 1.66,
+                "total_peak_gbps": 1.66,
+                "top_peer": "Peer AS64501",
+                "top_peer_pct": 55.4,
+                "covering_prefix": "203.0.112.0/23"
+            }
+        },
+        "table": {
+            "columns": ["Peer", "Router", "Interface", "Total GB", "Avg bps", "p95 bps", "Peak bps", "% of Top 25"],
+            "rows": [["Peer AS64501", "IGW-C1", "Te0/0/0/1", "744.0", "1650000000", "1660000000", "1660000000", "55.4"]],
+            "sort_column": "total_bits",
+            "sort_direction": "desc"
+        },
+        "anomalies": [{
+            "type": "single_path_dependency",
+            "severity": "warning",
+            "detail": "All inbound traffic for 203.0.113.0/24 is arriving via a single path"
+        }],
+        "data_quality": [{
+            "type": "sparse_time_series",
+            "detail": "Coverage 74.3% (214 of 288 expected intervals) for peer Peer AS64501"
+        }],
+        "confidence": [{
+            "type": "fixed_sampling_caveat",
+            "field": "total_bits",
+            "detail": "Sampling rate unavailable from Sightline configuration endpoint"
+        }],
+        "time_series_ref": "sim://flows/203.0.113.0_24/inbound",
+        "meta": {
+            "queried_prefix": "203.0.113.0/24",
+            "effective_prefix": "203.0.113.0/24",
+            "direction": "inbound",
+            "sample_interval_seconds": 300,
+            "interval_count_expected": 288,
+            "source": "zain-telco-x simulator via MCP /run_template"
+        }
+    })
+}
+
+fn zain_summary_table_card_template() -> serde_json::Value {
+    json!({
+        "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+        "type": "AdaptiveCard",
+        "version": "1.6",
+        "body": [
+            {
+                "type": "Container",
+                "style": "emphasis",
+                "items": [
+                    { "type": "TextBlock", "weight": "Bolder", "text": "Zain inbound throughput" },
+                    { "type": "TextBlock", "wrap": true, "text": "{{payload.summary.fields.direction}} throughput for {{payload.summary.fields.prefix}}: {{payload.summary.fields.total_p95_gbps}} Gbps p95; top peer {{payload.summary.fields.top_peer}}" },
+                    { "type": "FactSet", "facts": [
+                        { "title": "Outcome", "value": "{{payload.outcome}}" },
+                        { "title": "Prefix", "value": "{{payload.summary.fields.prefix}}" },
+                        { "title": "Direction", "value": "{{payload.summary.fields.direction}}" },
+                        { "title": "p95", "value": "{{payload.summary.fields.total_p95_gbps}} Gbps" }
+                    ]}
+                ]
+            },
+            {
+                "type": "Table",
+                "columns": [
+                    { "width": 2 }, { "width": 1 }, { "width": 1 }, { "width": 1 },
+                    { "width": 1 }, { "width": 1 }, { "width": 1 }, { "width": 1 }
+                ],
+                "rows": [
+                    { "type": "TableRow", "style": "accent", "cells": [
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "weight": "Bolder", "wrap": true, "text": "Peer" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "weight": "Bolder", "wrap": true, "text": "Router" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "weight": "Bolder", "wrap": true, "text": "Interface" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "weight": "Bolder", "wrap": true, "text": "Total GB" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "weight": "Bolder", "wrap": true, "text": "Avg bps" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "weight": "Bolder", "wrap": true, "text": "p95 bps" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "weight": "Bolder", "wrap": true, "text": "Peak bps" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "weight": "Bolder", "wrap": true, "text": "% of Top 25" }] }
+                    ]},
+                    { "type": "TableRow", "cells": [
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "wrap": true, "text": "{{payload.table.rows.[0].[0]}}" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "wrap": true, "text": "{{payload.table.rows.[0].[1]}}" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "wrap": true, "text": "{{payload.table.rows.[0].[2]}}" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "wrap": true, "text": "{{payload.table.rows.[0].[3]}}" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "wrap": true, "text": "{{payload.table.rows.[0].[4]}}" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "wrap": true, "text": "{{payload.table.rows.[0].[5]}}" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "wrap": true, "text": "{{payload.table.rows.[0].[6]}}" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "wrap": true, "text": "{{payload.table.rows.[0].[7]}}" }] }
+                    ]}
+                ]
+            },
+            {
+                "type": "Container",
+                "style": "warning",
+                "items": [
+                    { "type": "TextBlock", "weight": "Bolder", "text": "Warning: {{payload.anomalies.[0].type}}" },
+                    { "type": "TextBlock", "wrap": true, "text": "{{payload.anomalies.[0].detail}}" }
+                ]
+            },
+            {
+                "type": "Container",
+                "style": "attention",
+                "items": [
+                    { "type": "TextBlock", "weight": "Bolder", "text": "Data quality: {{payload.data_quality.[0].type}}" },
+                    { "type": "TextBlock", "wrap": true, "text": "{{payload.data_quality.[0].detail}}" }
+                ]
+            },
+            {
+                "type": "Container",
+                "style": "emphasis",
+                "items": [
+                    { "type": "TextBlock", "weight": "Bolder", "text": "Confidence" },
+                    { "type": "TextBlock", "wrap": true, "text": "{{payload.confidence.[0].type}}: {{payload.confidence.[0].detail}}" }
+                ]
+            },
+            {
+                "type": "FactSet",
+                "facts": [
+                    { "title": "Evidence", "value": "{{payload.time_series_ref}}" },
+                    { "title": "Source", "value": "{{payload.meta.source}}" },
+                    { "title": "Sample interval", "value": "{{payload.meta.sample_interval_seconds}}s" }
+                ]
+            }
+        ],
+        "actions": [
+            { "type": "Action.Submit", "title": "Show outbound throughput for {{payload.summary.fields.prefix}}, last day", "data": { "text": "Show outbound throughput for {{payload.summary.fields.prefix}}, last day" } },
+            { "type": "Action.Submit", "title": "Which IGWs are advertising {{payload.summary.fields.prefix}}?", "data": { "text": "Which IGWs are advertising {{payload.summary.fields.prefix}}?" } }
+        ]
+    })
+}
+
+fn zain_exception_card_template() -> serde_json::Value {
+    json!({
+        "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+        "type": "AdaptiveCard",
+        "version": "1.6",
+        "body": [
+            { "type": "TextBlock", "weight": "Bolder", "text": "Throughput request requires attention" },
+            { "type": "FactSet", "facts": [
+                { "title": "Issue", "value": "{{payload.outcome}}" },
+                { "title": "Prefix", "value": "{{payload.summary.fields.prefix}}" },
+                { "title": "Resolution", "value": "Check the prefix or query a covering aggregate if appropriate." }
+            ]},
+            { "type": "TextBlock", "wrap": true, "text": "Effective prefix: {{payload.meta.effective_prefix}}" }
+        ]
+    })
+}
+
+fn zain_clarification_payload() -> serde_json::Value {
+    json!({
+        "query_type": "throughput",
+        "outcome": "clarification",
+        "summary": {
+            "template_id": "throughput_missing_prefix",
+            "fields": {
+                "missing_parameter": "prefix",
+                "guidance": "Please include a prefix, for example 203.0.113.0/24."
+            }
+        }
+    })
+}
+
+fn zain_clarification_card_template() -> serde_json::Value {
+    json!({
+        "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+        "type": "AdaptiveCard",
+        "version": "1.6",
+        "body": [
+            { "type": "TextBlock", "weight": "Bolder", "text": "Clarification required" },
+            { "type": "FactSet", "facts": [
+                { "title": "Missing parameter", "value": "{{payload.summary.fields.missing_parameter}}" },
+                { "title": "Guidance", "value": "{{payload.summary.fields.guidance}}" }
+            ]}
+        ]
+    })
+}
+
+fn render_zain_card(template: serde_json::Value, payload: serde_json::Value) -> serde_json::Value {
+    let mut invocation = base_invocation(template);
+    invocation.payload = payload;
+    invocation.validation_mode = ValidationMode::Error;
+    let result = handle_invocation(invocation).expect("Zain card should render and validate");
+    assert!(
+        result.validation_issues.is_empty(),
+        "unexpected validation issues: {:?}",
+        result.validation_issues
+    );
+    result.rendered_card.expect("card should render")
+}
+
+fn rendered_texts(value: &serde_json::Value, out: &mut Vec<String>) {
+    match value {
+        serde_json::Value::Object(map) => {
+            if map.get("type").and_then(serde_json::Value::as_str) == Some("TextBlock")
+                && let Some(text) = map.get("text").and_then(serde_json::Value::as_str)
+            {
+                out.push(text.to_string());
+            }
+            if let Some(title) = map.get("title").and_then(serde_json::Value::as_str) {
+                out.push(title.to_string());
+            }
+            if let Some(value) = map.get("value").and_then(serde_json::Value::as_str) {
+                out.push(value.to_string());
+            }
+            for nested in map.values() {
+                rendered_texts(nested, out);
+            }
+        }
+        serde_json::Value::Array(items) => {
+            for item in items {
+                rendered_texts(item, out);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn rendered_contains(card: &serde_json::Value, needle: &str) -> bool {
+    let mut texts = Vec::new();
+    rendered_texts(card, &mut texts);
+    texts.iter().any(|text| text.contains(needle))
+}
+
+#[test]
+fn zain_throughput_summary_table_card_renders_payload_contract() {
+    let card = render_zain_card(
+        zain_summary_table_card_template(),
+        zain_throughput_payload("normal"),
+    );
+    assert_eq!(
+        card["$schema"],
+        "http://adaptivecards.io/schemas/adaptive-card.json"
+    );
+    assert_eq!(card["type"], "AdaptiveCard");
+    assert_eq!(card["version"], "1.6");
+    assert!(rendered_contains(&card, "Zain inbound throughput"));
+    assert!(rendered_contains(&card, "203.0.113.0/24"));
+    assert!(rendered_contains(&card, "Peer AS64501"));
+    assert!(rendered_contains(&card, "Total GB"));
+    assert!(rendered_contains(&card, "p95 bps"));
+    assert!(rendered_contains(
+        &card,
+        "sim://flows/203.0.113.0_24/inbound"
+    ));
+    assert!(rendered_contains(
+        &card,
+        "Show outbound throughput for 203.0.113.0/24, last day"
+    ));
+}
+
+#[test]
+fn zain_throughput_anomaly_data_quality_and_confidence_panels_are_distinct() {
+    let card = render_zain_card(
+        zain_summary_table_card_template(),
+        zain_throughput_payload("single_path_dependency"),
+    );
+    assert!(card.to_string().contains("\"style\":\"warning\""));
+    assert!(card.to_string().contains("\"style\":\"attention\""));
+    assert!(rendered_contains(&card, "Warning: single_path_dependency"));
+    assert!(rendered_contains(&card, "Data quality: sparse_time_series"));
+    assert!(rendered_contains(&card, "fixed_sampling_caveat"));
+}
+
+#[test]
+fn zain_throughput_exception_outcomes_render_as_adaptive_card_1_6() {
+    for outcome in ["prefix_not_found", "covering_aggregate"] {
+        let mut payload = zain_throughput_payload(outcome);
+        payload["meta"]["effective_prefix"] = if outcome == "covering_aggregate" {
+            json!("203.0.112.0/23")
+        } else {
+            json!("203.0.113.0/24")
+        };
+        let card = render_zain_card(zain_exception_card_template(), payload);
+        assert_eq!(card["version"], "1.6");
+        assert!(rendered_contains(&card, outcome));
+        assert!(rendered_contains(&card, "Resolution"));
+    }
+}
+
+#[test]
+fn zain_throughput_clarification_card_renders_missing_prefix_guidance() {
+    let card = render_zain_card(
+        zain_clarification_card_template(),
+        zain_clarification_payload(),
+    );
+    assert_eq!(card["version"], "1.6");
+    assert!(rendered_contains(&card, "Clarification required"));
+    assert!(rendered_contains(&card, "prefix"));
+    assert!(rendered_contains(&card, "Please include a prefix"));
 }
