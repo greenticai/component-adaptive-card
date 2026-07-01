@@ -913,10 +913,10 @@ fn render_zain_card(template: serde_json::Value, payload: serde_json::Value) -> 
 fn rendered_texts(value: &serde_json::Value, out: &mut Vec<String>) {
     match value {
         serde_json::Value::Object(map) => {
-            if map.get("type").and_then(serde_json::Value::as_str) == Some("TextBlock") {
-                if let Some(text) = map.get("text").and_then(serde_json::Value::as_str) {
-                    out.push(text.to_string());
-                }
+            if map.get("type").and_then(serde_json::Value::as_str) == Some("TextBlock")
+                && let Some(text) = map.get("text").and_then(serde_json::Value::as_str)
+            {
+                out.push(text.to_string());
             }
             if let Some(title) = map.get("title").and_then(serde_json::Value::as_str) {
                 out.push(title.to_string());
