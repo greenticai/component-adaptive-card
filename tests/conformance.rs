@@ -1284,3 +1284,303 @@ fn zain_throughput_clarification_card_renders_missing_prefix_guidance() {
     assert!(rendered_contains(&card, "prefix"));
     assert!(rendered_contains(&card, "Please include a prefix"));
 }
+
+fn zain_bidirectional_throughput_payload() -> serde_json::Value {
+    json!({
+        "query_type": "throughput",
+        "outcome": "normal",
+        "summary": {
+            "template_id": "throughput_normal",
+            "fields": {
+                "prefix": "203.0.113.0/24",
+                "direction": "both",
+                "time_range": "last day",
+                "total_avg_gbps": 2.41,
+                "total_p95_gbps": 2.76,
+                "total_peak_gbps": 3.01
+            }
+        },
+        "tables": [
+            {
+                "label": "Inbound",
+                "columns": ["Peer", "Router", "Interface", "Total GB", "Avg bps", "p95 bps", "Peak bps", "% of Top 25"],
+                "rows": [["Peer AS64501", "IGW-C1", "Te0/0/0/1", "9720", "0.90 Gbps", "0.95 Gbps", "0.98 Gbps", "54.9%"]],
+                "sort_column": "total_bits",
+                "sort_direction": "desc"
+            },
+            {
+                "label": "Outbound",
+                "columns": ["Peer", "Router", "Interface", "Total GB", "Avg bps", "p95 bps", "Peak bps", "% of Top 25"],
+                "rows": [["Peer AS64502", "IGW-C2", "Te0/0/0/4", "8316", "0.77 Gbps", "0.84 Gbps", "0.89 Gbps", "47.8%"]],
+                "sort_column": "total_bits",
+                "sort_direction": "desc"
+            }
+        ],
+        "anomalies": [{
+            "type": "asymmetric_distribution",
+            "severity": "warning",
+            "detail": "Inbound traffic is concentrated on one peer",
+            "direction": "inbound"
+        }],
+        "data_quality": [{
+            "type": "sparse_time_series",
+            "detail": "Coverage 87.5% on outbound table",
+            "direction": "outbound"
+        }],
+        "meta": {
+            "queried_prefix": "203.0.113.0/24",
+            "effective_prefix": "203.0.113.0/24",
+            "direction": "both",
+            "sample_interval_seconds": 300,
+            "interval_count_expected": 288
+        }
+    })
+}
+
+fn zain_dual_direction_card_template() -> serde_json::Value {
+    json!({
+        "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+        "type": "AdaptiveCard",
+        "version": "1.6",
+        "body": [
+            {
+                "type": "Container",
+                "style": "emphasis",
+                "items": [
+                    { "type": "TextBlock", "weight": "Bolder", "text": "Zain bidirectional throughput" },
+                    { "type": "TextBlock", "wrap": true, "text": "{{payload.summary.fields.prefix}} both directions: {{payload.summary.fields.total_p95_gbps}} Gbps p95" },
+                    { "type": "FactSet", "facts": [
+                        { "title": "Direction", "value": "{{payload.summary.fields.direction}}" },
+                        { "title": "Peak", "value": "{{payload.summary.fields.total_peak_gbps}} Gbps" }
+                    ]}
+                ]
+            },
+            { "type": "TextBlock", "weight": "Bolder", "text": "{{payload.tables.[0].label}}" },
+            {
+                "type": "Table",
+                "columns": [{ "width": 2 }, { "width": 1 }, { "width": 1 }, { "width": 1 }],
+                "rows": [
+                    { "type": "TableRow", "style": "accent", "cells": [
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "weight": "Bolder", "text": "Peer" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "weight": "Bolder", "text": "Router" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "weight": "Bolder", "text": "p95 bps" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "weight": "Bolder", "text": "% of Top 25" }] }
+                    ]},
+                    { "type": "TableRow", "cells": [
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "wrap": true, "text": "{{payload.tables.[0].rows.[0].[0]}}" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "wrap": true, "text": "{{payload.tables.[0].rows.[0].[1]}}" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "wrap": true, "text": "{{payload.tables.[0].rows.[0].[5]}}" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "wrap": true, "text": "{{payload.tables.[0].rows.[0].[7]}}" }] }
+                    ]}
+                ]
+            },
+            { "type": "TextBlock", "weight": "Bolder", "text": "{{payload.tables.[1].label}}" },
+            {
+                "type": "Table",
+                "columns": [{ "width": 2 }, { "width": 1 }, { "width": 1 }, { "width": 1 }],
+                "rows": [
+                    { "type": "TableRow", "style": "accent", "cells": [
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "weight": "Bolder", "text": "Peer" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "weight": "Bolder", "text": "Router" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "weight": "Bolder", "text": "p95 bps" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "weight": "Bolder", "text": "% of Top 25" }] }
+                    ]},
+                    { "type": "TableRow", "cells": [
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "wrap": true, "text": "{{payload.tables.[1].rows.[0].[0]}}" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "wrap": true, "text": "{{payload.tables.[1].rows.[0].[1]}}" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "wrap": true, "text": "{{payload.tables.[1].rows.[0].[5]}}" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "wrap": true, "text": "{{payload.tables.[1].rows.[0].[7]}}" }] }
+                    ]}
+                ]
+            },
+            {
+                "type": "Container",
+                "style": "warning",
+                "items": [
+                    { "type": "TextBlock", "weight": "Bolder", "text": "Anomaly: {{payload.anomalies.[0].direction}}" },
+                    { "type": "TextBlock", "wrap": true, "text": "{{payload.anomalies.[0].detail}}" }
+                ]
+            },
+            {
+                "type": "Container",
+                "style": "attention",
+                "items": [
+                    { "type": "TextBlock", "weight": "Bolder", "text": "Data quality notes: {{payload.data_quality.[0].direction}}" },
+                    { "type": "TextBlock", "wrap": true, "text": "{{payload.data_quality.[0].detail}}" }
+                ]
+            }
+        ],
+        "actions": [
+            { "type": "Action.Submit", "title": "Show inbound only", "data": { "text": "Show inbound only for {{payload.summary.fields.prefix}}, last day" } },
+            { "type": "Action.Submit", "title": "Show outbound only", "data": { "text": "Show outbound only for {{payload.summary.fields.prefix}}, last day" } }
+        ]
+    })
+}
+
+fn zain_igw_advertisers_payload(outcome: &str) -> serde_json::Value {
+    json!({
+        "query_type": "igw_advertisers",
+        "outcome": outcome,
+        "summary": {
+            "template_id": format!("igw_advertisers_{outcome}"),
+            "fields": {
+                "prefix": "203.0.113.0/24",
+                "igw_count": 2,
+                "session_count": 2,
+                "established_count": 2,
+                "path_count": 2
+            }
+        },
+        "table": {
+            "columns": ["Router", "Peer", "Remote AS", "Session State", "Uptime", "Advertises Prefix", "Next-hop Type", "AS Path", "Flags"],
+            "rows": [
+                ["IGW-C1", "198.51.100.1", "64501", "Established", "86400", "Yes", "Expected", "64501 3356", ""],
+                ["IGW-C2", "198.51.100.5", "64502", "Idle", "0", "No", "Unexpected", "64502 3356", "session down"]
+            ],
+            "sort_column": "session_state",
+            "sort_direction": "desc"
+        },
+        "anomalies": [{
+            "type": "session_flapping",
+            "severity": "warning",
+            "detail": "Session IGW-C2/198.51.100.5 uptime 0s"
+        }],
+        "data_quality": [{
+            "type": "bgp_data_stale",
+            "detail": "BGP data is 75 minutes old"
+        }],
+        "meta": {
+            "queried_prefix": "203.0.113.0/24",
+            "effective_prefix": "203.0.113.0/24",
+            "bgp_routes_count": 2,
+            "sessions_checked": 2
+        }
+    })
+}
+
+fn zain_bgp_session_health_card_template() -> serde_json::Value {
+    json!({
+        "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+        "type": "AdaptiveCard",
+        "version": "1.6",
+        "body": [
+            {
+                "type": "Container",
+                "style": "emphasis",
+                "items": [
+                    { "type": "TextBlock", "weight": "Bolder", "text": "Zain IGW advertiser status" },
+                    { "type": "TextBlock", "wrap": true, "text": "{{payload.summary.fields.prefix}} advertised by {{payload.summary.fields.igw_count}} IGWs; {{payload.summary.fields.established_count}} Established sessions" },
+                    { "type": "FactSet", "facts": [
+                        { "title": "Outcome", "value": "{{payload.outcome}}" },
+                        { "title": "Paths", "value": "{{payload.summary.fields.path_count}}" },
+                        { "title": "Sessions checked", "value": "{{payload.meta.sessions_checked}}" }
+                    ]}
+                ]
+            },
+            {
+                "type": "Table",
+                "columns": [{ "width": 1 }, { "width": 1 }, { "width": 1 }, { "width": 1 }, { "width": 1 }, { "width": 1 }, { "width": 1 }, { "width": 2 }, { "width": 1 }],
+                "rows": [
+                    { "type": "TableRow", "style": "accent", "cells": [
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "weight": "Bolder", "wrap": true, "text": "Router" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "weight": "Bolder", "wrap": true, "text": "Peer" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "weight": "Bolder", "wrap": true, "text": "Remote AS" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "weight": "Bolder", "wrap": true, "text": "Session State" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "weight": "Bolder", "wrap": true, "text": "Uptime" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "weight": "Bolder", "wrap": true, "text": "Advertises Prefix" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "weight": "Bolder", "wrap": true, "text": "Next-hop Type" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "weight": "Bolder", "wrap": true, "text": "AS Path" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "weight": "Bolder", "wrap": true, "text": "Flags" }] }
+                    ]},
+                    { "type": "TableRow", "cells": [
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "wrap": true, "text": "{{payload.table.rows.[0].[0]}}" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "wrap": true, "text": "{{payload.table.rows.[0].[1]}}" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "wrap": true, "text": "{{payload.table.rows.[0].[2]}}" }] },
+                        { "type": "TableCell", "style": "accent", "items": [{ "type": "TextBlock", "wrap": true, "text": "{{payload.table.rows.[0].[3]}}" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "wrap": true, "text": "{{payload.table.rows.[0].[4]}}" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "wrap": true, "text": "{{payload.table.rows.[0].[5]}}" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "wrap": true, "text": "{{payload.table.rows.[0].[6]}}" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "wrap": true, "text": "{{payload.table.rows.[0].[7]}}" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "wrap": true, "text": "{{payload.table.rows.[0].[8]}}" }] }
+                    ]},
+                    { "type": "TableRow", "style": "warning", "cells": [
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "wrap": true, "text": "{{payload.table.rows.[1].[0]}}" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "wrap": true, "text": "{{payload.table.rows.[1].[1]}}" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "wrap": true, "text": "{{payload.table.rows.[1].[2]}}" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "wrap": true, "text": "{{payload.table.rows.[1].[3]}}" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "wrap": true, "text": "{{payload.table.rows.[1].[4]}}" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "wrap": true, "text": "{{payload.table.rows.[1].[5]}}" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "wrap": true, "text": "{{payload.table.rows.[1].[6]}}" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "wrap": true, "text": "{{payload.table.rows.[1].[7]}}" }] },
+                        { "type": "TableCell", "items": [{ "type": "TextBlock", "wrap": true, "text": "{{payload.table.rows.[1].[8]}}" }] }
+                    ]}
+                ]
+            },
+            {
+                "type": "Container",
+                "style": "warning",
+                "items": [
+                    { "type": "TextBlock", "weight": "Bolder", "text": "Anomaly: {{payload.anomalies.[0].type}}" },
+                    { "type": "TextBlock", "wrap": true, "text": "{{payload.anomalies.[0].detail}}" }
+                ]
+            },
+            {
+                "type": "Container",
+                "style": "attention",
+                "items": [
+                    { "type": "TextBlock", "weight": "Bolder", "text": "Data quality notes" },
+                    { "type": "TextBlock", "wrap": true, "text": "{{payload.data_quality.[0].detail}}" }
+                ]
+            }
+        ],
+        "actions": [
+            { "type": "Action.Submit", "title": "Show inbound throughput", "data": { "text": "Show inbound throughput for {{payload.summary.fields.prefix}}, last day" } },
+            { "type": "Action.Submit", "title": "Show outbound throughput", "data": { "text": "Show outbound throughput for {{payload.summary.fields.prefix}}, last day" } }
+        ]
+    })
+}
+
+#[test]
+fn zain_bidirectional_throughput_renders_card_type_1b_tables_array() {
+    let card = render_zain_card(
+        zain_dual_direction_card_template(),
+        zain_bidirectional_throughput_payload(),
+    );
+    assert_eq!(card["version"], "1.6");
+    assert!(rendered_contains(&card, "Zain bidirectional throughput"));
+    assert!(rendered_contains(&card, "Inbound"));
+    assert!(rendered_contains(&card, "Outbound"));
+    assert!(rendered_contains(&card, "Peer AS64501"));
+    assert!(rendered_contains(&card, "Peer AS64502"));
+    assert!(rendered_contains(&card, "Anomaly: inbound"));
+    assert!(rendered_contains(&card, "Data quality notes: outbound"));
+    assert!(rendered_contains(&card, "Show inbound only"));
+    assert!(rendered_contains(&card, "Show outbound only"));
+    assert!(
+        !card.to_string().contains("#"),
+        "renderer fixture must not hardcode hex colours"
+    );
+}
+
+#[test]
+fn zain_igw_advertisers_renders_card_type_2_bgp_session_health_table() {
+    let card = render_zain_card(
+        zain_bgp_session_health_card_template(),
+        zain_igw_advertisers_payload("session_flapping"),
+    );
+    assert_eq!(card["version"], "1.6");
+    assert!(rendered_contains(&card, "Zain IGW advertiser status"));
+    assert!(rendered_contains(&card, "Session State"));
+    assert!(rendered_contains(&card, "Established"));
+    assert!(rendered_contains(&card, "Idle"));
+    assert!(rendered_contains(&card, "AS Path"));
+    assert!(rendered_contains(&card, "64501 3356"));
+    assert!(rendered_contains(&card, "session down"));
+    assert!(rendered_contains(&card, "Anomaly: session_flapping"));
+    assert!(rendered_contains(&card, "BGP data is 75 minutes old"));
+    assert!(card.to_string().contains("\"style\":\"warning\""));
+    assert!(
+        !card.to_string().contains("#"),
+        "renderer fixture must not hardcode hex colours"
+    );
+}
