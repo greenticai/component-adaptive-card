@@ -88,7 +88,10 @@ jobs:
             greentic-integration-tester run --gtest tests/gtests/matrix/full --artifacts-dir "${CORPUS_DIR}/matrix/full" --seed "${SEED}"
           done
       - name: Upload failure corpus
-        if: failure()
+        # corpus_root is only set once the chaos step runs; without this guard
+        # any earlier failure (prefetch, setup, build, drift check) makes
+        # upload-artifact abort on an empty `path` and masks the real error.
+        if: failure() && steps.run-chaos.outputs.corpus_root != ''
         uses: actions/upload-artifact@v4
         with:
           name: adaptive-card-failure-corpus
