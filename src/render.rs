@@ -295,18 +295,20 @@ fn load_with_candidates(
     }))
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BindingContext {
     payload: Value,
     session: Value,
     state: Value,
     template_params: Value,
     prefill: Value,
+    items: Vec<Value>,
 }
 
 impl BindingContext {
     fn from_invocation(inv: &AdaptiveCardInvocation) -> Self {
         BindingContext {
+            items: Vec::new(),
             payload: inv.payload.clone(),
             session: inv.session.clone(),
             state: inv.state.clone(),
@@ -335,40 +337,47 @@ impl BindingContext {
             "state" => attempt_root(&self.state, segments),
             "params" | "template" => attempt_root(&self.template_params, segments),
             "prefill" => attempt_root(&self.prefill, segments),
-            _ => lookup_in(
-                &self.payload,
-                normalize_path(&path)
-                    .split('.')
-                    .collect::<Vec<_>>()
-                    .into_iter(),
-            )
-            .or_else(|| {
-                lookup_in(
-                    &self.session,
-                    normalize_path(&path)
-                        .split('.')
-                        .collect::<Vec<_>>()
-                        .into_iter(),
-                )
-            })
-            .or_else(|| {
-                lookup_in(
-                    &self.state,
-                    normalize_path(&path)
-                        .split('.')
-                        .collect::<Vec<_>>()
-                        .into_iter(),
-                )
-            })
-            .or_else(|| {
-                lookup_in(
-                    &self.template_params,
-                    normalize_path(&path)
-                        .split('.')
-                        .collect::<Vec<_>>()
-                        .into_iter(),
-                )
-            }),
+            _ => self
+                .items
+                .iter()
+                .rev()
+                .find_map(|item| lookup_in(item, normalize_path(&path).split('.')))
+                .or_else(|| {
+                    lookup_in(
+                        &self.payload,
+                        normalize_path(&path)
+                            .split('.')
+                            .collect::<Vec<_>>()
+                            .into_iter(),
+                    )
+                })
+                .or_else(|| {
+                    lookup_in(
+                        &self.session,
+                        normalize_path(&path)
+                            .split('.')
+                            .collect::<Vec<_>>()
+                            .into_iter(),
+                    )
+                })
+                .or_else(|| {
+                    lookup_in(
+                        &self.state,
+                        normalize_path(&path)
+                            .split('.')
+                            .collect::<Vec<_>>()
+                            .into_iter(),
+                    )
+                })
+                .or_else(|| {
+                    lookup_in(
+                        &self.template_params,
+                        normalize_path(&path)
+                            .split('.')
+                            .collect::<Vec<_>>()
+                            .into_iter(),
+                    )
+                }),
         };
 
         match (found, default) {
@@ -577,9 +586,49 @@ fn apply_bindings(
             Ok(())
         }
         Value::Array(items) => {
-            for item in items {
-                apply_bindings(item, ctx, engine, summary, mode.clone())?;
+            let mut expanded = Vec::new();
+            for mut item in std::mem::take(items) {
+                if let Some(binding) = item.as_object_mut().and_then(|map| map.remove("$data")) {
+                    // Expand templates before replacing row bindings. Never revisit a
+                    // resolved row: runtime strings may themselves contain `${...}`.
+                    let collection = binding
+                        .as_str()
+                        .and_then(extract_expression)
+                        .filter(|expr| is_simple_expression(expr))
+                        .and_then(|path| ctx.lookup(path));
+                    match collection {
+                        Some(Value::Array(rows)) => {
+                            for row in rows {
+                                let mut scoped = ctx.clone();
+                                scoped.items.push(row);
+                                let mut repeated = item.clone();
+                                apply_bindings(
+                                    &mut repeated,
+                                    &scoped,
+                                    engine,
+                                    summary,
+                                    mode.clone(),
+                                )?;
+                                expanded.push(repeated);
+                            }
+                        }
+                        _ => {
+                            summary.missing_paths += 1;
+                            if mode == ValidationMode::Error {
+                                return Err(ComponentError::Binding(format!(
+                                    "$data must resolve to an array: {binding}"
+                                )));
+                            }
+                            // Missing/invalid collections are omitted in Warn/Off;
+                            // retaining an unresolved template would create bogus rows.
+                        }
+                    }
+                } else {
+                    apply_bindings(&mut item, ctx, engine, summary, mode.clone())?;
+                    expanded.push(item);
+                }
             }
+            *items = expanded;
             Ok(())
         }
         Value::Object(map) => {
