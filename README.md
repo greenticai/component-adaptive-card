@@ -318,3 +318,79 @@ greentic-component test \
 - Adaptive Card Designer: https://adaptivecards.io/designer/
 - Microsoft Teams Cards: https://learn.microsoft.com/microsoftteams/platform/task-modules-and-cards/cards/cards-reference
 - Webex Adaptive Cards: https://developer.webex.com/messaging/docs/buttons-and-cards
+
+### Runtime collection templates
+
+The existing `card` operation expands `$data` on elements in card arrays
+(`body`, container `items`, `actions`, and nested arrays). Pass runtime JSON values,
+including upstream node arrays, through `card_spec.template_params`:
+
+```json
+{
+  "card_source": "inline",
+  "card_spec": {
+    "template_params": {
+      "customers": [
+        {"name": "Ada", "customer_id": 101},
+        {"name": "Lin", "customer_id": 202}
+      ]
+    },
+    "inline_json": {
+      "type": "AdaptiveCard",
+      "version": "1.6",
+      "body": [{
+        "type": "Container",
+        "$data": "${customers}",
+        "items": [
+          {"type": "TextBlock", "text": "${name}"},
+          {"type": "ActionSet", "actions": [{
+            "type": "Action.Submit",
+            "id": "select-${customer_id}",
+            "title": "Select",
+            "data": {
+              "customer_id": "${customer_id}",
+              "action": "select",
+              "nextCardId": "details"
+            }
+          }]}
+        ]
+      }]
+    }
+  }
+}
+```
+
+`$data` must be a single `${path}` binding resolving to an array. Each item
+creates one sibling element in array order; the directive is removed. Nested
+repetitions resolve against the innermost item, then enclosing items, then the
+existing invocation contexts. Explicit `params.customers` (or `template.customers`)
+selects template parameters directly. Item fields use the existing dotted paths
+and string interpolation; a whole-value binding retains its JSON type, so the
+example's submitted ID remains a number. Give repeated inputs/actions unique IDs
+when they have an `id`; existing validation still checks the expanded card.
+This is a limited runtime syntax, not the full Adaptive Card template language.
+
+An empty array produces no elements. Missing, null, non-array, or malformed
+collection bindings produce a binding error in `validation_mode: "error"`.
+In `warn`/`off`, they omit the repeated element and increment the binding missing
+path diagnostic. Schema and structural validation continue after expansion;
+empty arrays in fields with minimum-length requirements can still fail validation.
+
+For Submit interactions, the channel/host must pass the selected action's `data`
+(and any form inputs) as `interaction.raw_inputs` (also accepted as `rawInputs`).
+The component preserves these values in the interaction response:
+
+```json
+{
+  "event": {
+    "inputs": {"customer_id": 202, "action": "select", "nextCardId": "details"}
+  }
+}
+```
+
+The submitted ID's exact path in the component result is
+`event.inputs.customer_id`; the routing values are `event.inputs.action` and
+`event.inputs.nextCardId`. A flow reads these beneath wherever it stores this
+node's result. They are preserved data fields; session route updates separately
+use `interaction.metadata.route`. The component does not infer a selected row
+from an action ID or inject action data missing from the host submission.

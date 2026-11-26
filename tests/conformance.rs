@@ -1584,3 +1584,144 @@ fn zain_igw_advertisers_renders_card_type_2_bgp_session_health_table() {
         "renderer fixture must not hardcode hex colours"
     );
 }
+
+fn collection_invocation() -> AdaptiveCardInvocation {
+    let mut inv = base_invocation(json!({
+        "type": "AdaptiveCard", "version": "1.6",
+        "body": [{
+            "type": "Container", "$data": "${customers}",
+            "items": [
+                {"type": "TextBlock", "text": "Customer: ${name}"},
+                {"type": "Container", "items": [
+                    {"type": "TextBlock", "$data": "${notes}", "text": "${text}"}
+                ]},
+                {"type": "ActionSet", "actions": [{
+                    "type": "Action.Submit", "id": "select-${customer_id}",
+                    "title": "Select ${name}",
+                    "data": {"customer_id": "${customer_id}", "action": "select", "nextCardId": "details"}
+                }]}
+            ]
+        }]
+    }));
+    inv.validation_mode = ValidationMode::Error;
+    inv.card_spec.template_params = Some(json!({"customers": [
+        {"name": "Ada", "customer_id": 101, "notes": [{"text": "First"}, {"text": "Second"}]},
+        {"name": "Lin", "customer_id": 202, "notes": []}
+    ]}));
+    inv
+}
+
+#[test]
+fn runtime_collections_preserve_row_submit_data_in_interaction_response() {
+    let mut inv = collection_invocation();
+    let rendered = handle_invocation(inv.clone())
+        .unwrap()
+        .rendered_card
+        .unwrap();
+    let rows = rendered["body"].as_array().unwrap();
+    assert_eq!(rows.len(), 2);
+    assert!(rows[0].get("$data").is_none());
+    assert_eq!(rows[0]["items"][0]["text"], "Customer: Ada");
+    assert_eq!(rows[1]["items"][0]["text"], "Customer: Lin");
+    assert_eq!(rows[0]["items"][1]["items"].as_array().unwrap().len(), 2);
+    assert_eq!(rows[0]["items"][1]["items"][1]["text"], "Second");
+    assert_eq!(rows[1]["items"][1]["items"], json!([]));
+    for (row, id) in rows.iter().zip([101, 202]) {
+        let action = &row["items"][2]["actions"][0];
+        assert_eq!(action["data"]["customer_id"], id);
+        inv.interaction = Some(CardInteraction {
+            enabled: None,
+            interaction_type: CardInteractionType::Submit,
+            action_id: action["id"].as_str().unwrap().into(),
+            verb: None,
+            raw_inputs: action["data"].clone(),
+            card_instance_id: "customers".into(),
+            metadata: json!({}),
+        });
+        let response = serde_json::to_value(handle_invocation(inv.clone()).unwrap()).unwrap();
+        assert_eq!(response["event"]["inputs"]["customer_id"], id);
+        assert_eq!(response["event"]["inputs"]["action"], "select");
+        assert_eq!(response["event"]["inputs"]["nextCardId"], "details");
+    }
+}
+
+#[test]
+fn runtime_collection_missing_empty_and_invalid_values_follow_validation_mode() {
+    for params in [
+        json!({}),
+        json!({"customers": null}),
+        json!({"customers": "invalid"}),
+    ] {
+        let mut inv = collection_invocation();
+        inv.card_spec.template_params = Some(params);
+        assert!(handle_invocation(inv.clone()).is_err());
+        for mode in [ValidationMode::Warn, ValidationMode::Off] {
+            inv.validation_mode = mode;
+            let card = handle_invocation(inv.clone())
+                .unwrap()
+                .rendered_card
+                .unwrap();
+            assert_eq!(card["body"], json!([]));
+        }
+    }
+    let mut inv = collection_invocation();
+    inv.card_spec.template_params = Some(json!({"customers": []}));
+    assert_eq!(
+        handle_invocation(inv).unwrap().rendered_card.unwrap()["body"],
+        json!([])
+    );
+}
+
+#[test]
+fn runtime_collection_repeats_actions_and_keeps_validation() {
+    let mut inv = base_invocation(json!({
+        "type": "AdaptiveCard", "version": "1.6", "body": [],
+        "actions": [{"type": "Action.Submit", "$data": "${customers}",
+            "id": "${customer_id}", "title": "${name}"}]
+    }));
+    inv.card_spec.template_params = Some(json!({"customers": [
+        {"customer_id": "same", "name": "One"}, {"customer_id": "same", "name": "Two"}
+    ]}));
+    inv.validation_mode = ValidationMode::Warn;
+    let result = handle_invocation(inv.clone()).unwrap();
+    assert_eq!(
+        result.rendered_card.unwrap()["actions"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    assert!(
+        result
+            .validation_issues
+            .iter()
+            .any(|issue| issue.code == "duplicate-action-id")
+    );
+    inv.validation_mode = ValidationMode::Error;
+    assert!(handle_invocation(inv).is_err());
+}
+
+#[test]
+fn runtime_collection_scopes_shadow_outer_values_without_rebinding_runtime_strings() {
+    let mut inv = base_invocation(json!({
+        "type": "AdaptiveCard", "version": "1.6", "body": [{
+            "type": "Container", "$data": "${params.rows}", "items": [{
+                "type": "Container", "$data": "${children}", "items": [
+                    {"type": "TextBlock", "text": "Nested ${name}: ${parent} / ${params.label}"},
+                    {"type": "TextBlock", "text": "${literal}"}
+                ]
+            }]
+        }]
+    }));
+    inv.validation_mode = ValidationMode::Error;
+    inv.payload = json!({"name": "payload"});
+    inv.card_spec.template_params = Some(json!({
+        "label": "global", "rows": [{"name": "outer", "parent": "parent", "children": [
+            {"name": "inner", "literal": "${unresolved_runtime_text}"}
+        ]}]
+    }));
+    let card = handle_invocation(inv).unwrap().rendered_card.unwrap();
+    let items = &card["body"][0]["items"][0]["items"];
+    assert_eq!(items[0]["text"], "Nested inner: parent / global");
+    assert_eq!(items[1]["text"], "${unresolved_runtime_text}");
+}
