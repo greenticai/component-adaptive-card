@@ -1,0 +1,80 @@
+name: Publish immutable dev component
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - 'src/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'component.manifest.json'
+      - '.github/workflows/publish-component-dev.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-component-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-wasip2
+      - uses: Swatinem/rust-cache@v2
+      - name: Prefetch canonical WIT
+        run: ./ci/prefetch_canonical_wit.sh
+      - name: Check and build component
+        run: |
+          cargo fmt --all -- --check
+          RUST_TEST_THREADS=1 cargo test --workspace --all-targets --locked
+          cargo build --target wasm32-wasip2 --release --locked
+          ./ci/check_host_state_capability.sh
+      - uses: oras-project/setup-oras@v1
+      - name: Prepare manifest and provenance
+        run: |
+          python -m pip install blake3
+          mkdir publish
+          python - <<'PY'
+          import json, shutil
+          from pathlib import Path
+          import blake3
+          manifest = json.loads(Path('component.manifest.json').read_text())
+          source = Path(manifest['artifacts']['component_wasm'])
+          shutil.copy2(source, Path('publish') / source.name)
+          manifest['artifacts']['component_wasm'] = source.name
+          manifest['hashes']['component_wasm'] = 'blake3:' + blake3.blake3(source.read_bytes()).hexdigest()
+          Path('publish/component.manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
+          PY
+      - name: Log in to GHCR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: printf '%s' "$GH_TOKEN" | oras login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+      - name: Publish commit-addressed artifact
+        working-directory: publish
+        env:
+          IMAGE: ghcr.io/greenticai/components/component-adaptive-card
+        run: |
+          set -euo pipefail
+          ref="${IMAGE}:dev-${GITHUB_SHA}"
+          if oras manifest fetch "$ref" > existing.json 2>/dev/null; then
+            jq -e --arg sha "$GITHUB_SHA" '.annotations["org.opencontainers.image.revision"] == $sha' existing.json
+          else
+            created=$(git show -s --format=%cI HEAD)
+            oras push "$ref" \
+              --annotation "org.opencontainers.image.source=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
+              --annotation "org.opencontainers.image.revision=${GITHUB_SHA}" \
+              --annotation "org.opencontainers.image.created=${created}" \
+              component.manifest.json:application/vnd.greentic.component.manifest+json \
+              component_adaptive_card.wasm:application/wasm
+          fi
+          digest=$(oras resolve "$ref")
+          printf 'Component: `%s@%s`\nSource: `%s`\n' "$IMAGE" "$digest" "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
